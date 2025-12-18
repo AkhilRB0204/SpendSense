@@ -1,7 +1,12 @@
-import sqlite3
-from datetime import datetime
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-DB_FILE = "expenses.db"
+DATABASE_URL = "sqlite:///./expenses.db"
+
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+Base = declarative_base()
 
 # Initialize the database and create tables
 def init_db():
