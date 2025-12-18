@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from datetime import datetime, date
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 from typing import List
-from sqlalchemy import create_engine, Column, Integer, String, Float
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from sqlalchemy.orm import sessionmaker, relationship, Session
+
 
 # Replace USER and PASSWORD with your PostgreSQL credentials
 SQLALCHEMY_DATABASE_URL = "sqlite:///./spendsense.db"
@@ -32,9 +33,12 @@ class ExpenseDB(Base):
 Base.metadata.create_all(bind=engine)
 
 # Pydantic model
-class Expense(BaseModel):
-    amount: float
+class ExpenseIn(BaseModel):
+    user_id: int
     description: str
+    amount: float
+    category: str            # <-- make sure this exists
+    transaction_date: date = None
 
 class ExpenseOut(BaseModel):
     id: int
@@ -44,35 +48,38 @@ class ExpenseOut(BaseModel):
     created_at: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 # POST /expenses
 @app.post("/expenses", response_model=ExpenseOut)
-def add_expense(expense: Expense):
-    db = SessionLocal()
-    try:
-        db_expense = ExpenseDB(
-            amount=expense.amount,
-            description=expense.description,
-            category=expense.category
-        )
-        db.add(db_expense)
-        db.commit()
-        db.refresh(db_expense)
-    finally:
-        db.close()
+def add_expense(expense: ExpenseIn, db: Session = Depends(get_db)):
+    db_expense = ExpenseDB(
+        amount=expense.amount,
+        description=expense.description,
+        category=expense.category,
+        created_at=(expense.transaction_date or datetime.utcnow()).isoformat()
+    )
+    db.add(db_expense)
+    db.commit()
+    db.refresh(db_expense)
     return db_expense
 
 # GET /expenses
 @app.get("/expenses", response_model=List[ExpenseOut])
-def get_expenses():
-    db = SessionLocal()
-    try :
-        expenses = db.query(ExpenseDB).all()
-    finally :
-        db.close()
-    return expenses
-
+def get_expenses(db: Session = Depends(get_db)):
+    """
+    Returns all expenses in the database.
+    """
+    return db.query(ExpenseDB).all()
 
 # Root Endpoint
 @app.get("/")
