@@ -26,11 +26,8 @@ class ExpenseDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     amount = Column(Float, nullable=False)
     description = Column(String, nullable=False)
-    Category = Column(String, nullable=True)
-    created_at = Column(
-        String,
-        default=lambda: datetime.utcnow().isoformat()
-    )
+    category = Column(String, nullable=False)
+    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
 
 Base.metadata.create_all(bind=engine)
 
@@ -43,7 +40,7 @@ class ExpenseOut(BaseModel):
     id: int
     amount: float
     description: str
-    category: str | None
+    category: str 
     created_at: str
 
     class Config:
@@ -51,28 +48,33 @@ class ExpenseOut(BaseModel):
 
 # POST /expenses
 @app.post("/expenses", response_model=ExpenseOut)
-def add_expense(expense: ExpenseCreate):
+def add_expense(expense: Expense):
     db = SessionLocal()
-    db_expense = ExpenseDB(
-        amount=expense.amount,
-        description=expense.description
-    )
-
-    db.add(db_expense)
-    db.commit()
-    db.refresh(db_expense)
-    db.close()
-
+    try:
+        db_expense = ExpenseDB(
+            amount=expense.amount,
+            description=expense.description,
+            category=expense.category
+        )
+        db.add(db_expense)
+        db.commit()
+        db.refresh(db_expense)
+    finally:
+        db.close()
     return db_expense
 
 # GET /expenses
-@app.get("/expenses", response_model=List[Expense])
+@app.get("/expenses", response_model=List[ExpenseOut])
 def get_expenses():
     db = SessionLocal()
-    expenses = db.query(ExpenseDB).all()
-    db.close()
+    try :
+        expenses = db.query(ExpenseDB).all()
+    finally :
+        db.close()
     return expenses
 
+
+# Root Endpoint
 @app.get("/")
 def root():
     return {"status": "SpendSense backend running"}
