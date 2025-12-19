@@ -17,6 +17,11 @@ def get_db():
     finally:
         db.close()
 
+# root endpoint
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to SpendSense AI, your personal AI powered expense tracker!"}
+
 #  USERS 
 @app.post("/users", response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
