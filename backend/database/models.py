@@ -1,34 +1,41 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
-from .databaseutility import Base
 
-# User Model
+Base = declarative_base()
+
 class User(Base):
     __tablename__ = "users"
+
     user_id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
+    name = Column(String, nullable=False)         # User's name
+    email = Column(String, unique=True, index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship with expenses
     expenses = relationship("Expense", back_populates="user")
 
-# Category Model
+
 class Category(Base):
     __tablename__ = "categories"
+
     category_id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    name = Column(String, unique=True, index=True, nullable=False)  # Category name
+
+    # Relationship with expenses
     expenses = relationship("Expense", back_populates="category")
 
-# Expense model
+
 class Expense(Base):
     __tablename__ = "expenses"
+
     expense_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
-    category_id = Column(Integer, ForeignKey("categories.category_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id"))
+    category_id = Column(Integer, ForeignKey("categories.category_id"))
     amount = Column(Float, nullable=False)
-    description = Column(String(255))
-    transaction_date = Column(DateTime, default=datetime.utcnow)
+    description = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Relationships
     user = relationship("User", back_populates="expenses")
     category = relationship("Category", back_populates="expenses")
