@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Dict
 
 # User schemas
 class UserCreate(BaseModel):
@@ -40,3 +41,8 @@ class ExpenseResponse(BaseModel):
         model_config = {
         "from_attributes": True
 }
+
+# Expense summary schema
+class ExpenseSummaryResponse(BaseModel):
+    total_spent: float
+    by_category: Dict[str, float]
