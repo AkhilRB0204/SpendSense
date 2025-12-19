@@ -1,87 +1,111 @@
-from datetime import datetime, date
-from fastapi import FastAPI, Depends
+# mainmenu.py
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List
-from sqlalchemy import create_engine, Column, Integer, String, Float, Date, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship, Session
 
+# Import from database folder
+from database.databaseutility import engine, get_db
+from database.models import Base, User, Category, Expense
 
-# Replace USER and PASSWORD with your PostgreSQL credentials
-SQLALCHEMY_DATABASE_URL = "sqlite:///./spendsense.db"
+app = FastAPI(title="SpendSense API")
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
-
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-Base = declarative_base()
-
-app = FastAPI()
-
-# SQLAlchemy model
-class ExpenseDB(Base):
-    __tablename__ = "expenses"
-
-    id = Column(Integer, primary_key=True, index=True)
-    amount = Column(Float, nullable=False)
-    description = Column(String, nullable=False)
-    category = Column(String, nullable=False)
-    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
-
+# Create tables
 Base.metadata.create_all(bind=engine)
 
-# Pydantic model
-class ExpenseIn(BaseModel):
+# --- Pydantic Schemas ---
+class UserCreate(BaseModel):
+    username: str
+    email: str
+
+class CategoryCreate(BaseModel):
+    name: str
+
+class ExpenseCreate(BaseModel):
     user_id: int
-    description: str
-    amount: float
-    category: str            # <-- make sure this exists
-    transaction_date: date = None
-
-class ExpenseOut(BaseModel):
-    id: int
     amount: float
     description: str
-    category: str 
-    created_at: str
+    category_name: str
 
-    class Config:
-        from_attributes = True
+#  Routes
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to SpendSense API"}
 
+# Create User
+@app.post("/users")
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if user already exists
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User already exists")
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    db_user = User(username=user.username, email=user.email)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return {"user_id": db_user.user_id, "username": db_user.username, "email": db_user.email}
 
+# Create a new category
+@app.post("/categories")
+def create_category(category: CategoryCreate, db: Session = Depends(get_db)):
+    existing_category = db.query(Category).filter(Category.category_name == category.category_name).first()
+    if existing_category:
+        raise HTTPException(status_code=400, detail="Category already exists")
+    
+    db_category = Category(category_name=category.category_name)
+    db.add(db_category)
+    db.commit()
+    db.refresh(db_category)
+    return {"category_id": db_category.category_id, "category_name": db_category.category_name}
 
-# POST /expenses
-@app.post("/expenses", response_model=ExpenseOut)
-def add_expense(expense: ExpenseIn, db: Session = Depends(get_db)):
-    db_expense = ExpenseDB(
+# Add a new expense
+@app.post("/expenses")
+def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
+    # Check if user exists
+    user = db.query(User).filter(User.user_id == expense.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check if category exists; create if not
+    category = db.query(Category).filter(Category.category_name == expense.category_name).first()
+    if not category:
+        category = Category(category_name=expense.category_name)
+        db.add(category)
+        db.commit()
+        db.refresh(category)
+
+    # Add expense
+    db_expense = Expense(
+        user_id=user.user_id,
+        category_id=category.category_id,
         amount=expense.amount,
-        description=expense.description,
-        category=expense.category,
-        created_at=(expense.transaction_date or datetime.utcnow()).isoformat()
+        description=expense.description
     )
     db.add(db_expense)
     db.commit()
     db.refresh(db_expense)
-    return db_expense
 
-# GET /expenses
-@app.get("/expenses", response_model=List[ExpenseOut])
-def get_expenses(db: Session = Depends(get_db)):
-    """
-    Returns all expenses in the database.
-    """
-    return db.query(ExpenseDB).all()
+    return {
+        "expense_id": db_expense.expense_id,
+        "user_id": db_expense.user_id,
+        "amount": db_expense.amount,
+        "description": db_expense.description,
+        "category": category.category_name,
+        "created_at": db_expense.created_at
+    }
 
-# Root Endpoint
-@app.get("/")
-def root():
-    return {"status": "SpendSense backend running"}
+# --- Get all expenses ---
+@app.get("/expenses")
+def get_all_expenses(db: Session = Depends(get_db)):
+    expenses = db.query(Expense).join(Category).all()
+    return [
+        {
+            "expense_id": e.expense_id,
+            "user_id": e.user_id,
+            "amount": e.amount,
+            "description": e.description,
+            "category": db.query(Category).filter(Category.category_id == e.category_id).first().category_name,
+            "created_at": e.created_at
+        }
+        for e in expenses
+    ]
