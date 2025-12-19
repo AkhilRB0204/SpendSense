@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 from database import models, database, schemas
 from database.database import engine, SessionLocal
+from sqlalchemy import func 
+from datetime import datetime
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
@@ -83,4 +85,50 @@ def debug(db: Session = Depends(get_db)):
         "users": db.query(models.User).all(),
         "categories": db.query(models.Category).all(),
         "expenses": db.query(models.Expense).all()
+    }
+
+#  EXPENSE SUMMARY
+@app.get("/expenses/summary", response_model=schemas.ExpenseSummaryResponse)
+def monthly_summary(
+        user_id: int,
+        month: int,
+        year: int,
+    db: Session = Depends(get_db)
+):
+    # date range for the month
+    start_date = datetime(year, month, 1)
+
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1)
+    else:
+        end_date = datetime(year, month + 1, 1)
+
+    # Total spent by user in the month
+    total_spent = (
+        db.query(func.sum(models.Expense.amount))
+        .filter(models.Expense.created_at >= start_date)
+        .filter(models.Expense.created_at < end_date)
+        .scalar()
+    ) or 0.0
+
+    # Group by category
+    results = (
+        db.query(
+            models.Category.name,
+            func.sum(models.Expense.amount)
+        )
+        .join(models.Expense, models.Expense.category_id == models.Category.category_id)
+        .filter(models.Expense.created_at >= start_date)
+        .filter(models.Expense.created_at < end_date)
+        .group_by(models.Category.name)
+        .all()
+    )
+
+    # Format results
+    by_category = {name: amount for name, amount in results}
+
+    # return summary
+    return {
+        "total_spent": float(total_spent),
+        "by_category": by_category
     }
