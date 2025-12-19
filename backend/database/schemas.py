@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Dict
+from typing import List
 
 # User schemas
 class UserCreate(BaseModel):
@@ -23,6 +24,22 @@ class CategoryResponse(BaseModel):
     model_config = {
         "from_attributes": True
 }
+
+class CategoryExpenseSummary(BaseModel):
+    category_name: str
+    total: float
+
+class ExpenseSummaryResponse(BaseModel):
+    user_id: int
+    month: int
+    year: int
+    total_expense: float
+    category_breakdown: List[CategoryExpenseSummary]
+    class Config:
+        model_config = {
+        "from_attributes": True
+}
+
 
 # Expense schemas
 class ExpenseCreate(BaseModel):

@@ -87,37 +87,44 @@ def debug(db: Session = Depends(get_db)):
         "expenses": db.query(models.Expense).all()
     }
 
-#  EXPENSE SUMMARY
-@app.get("/expenses/summary", response_model=schemas.ExpenseSummaryResponse)
+#  Monthly Expense Summary
+@app.get("/users/{user_id}/expenses/summary", response_model=schemas.ExpenseSummaryResponse)
 def monthly_summary(
         user_id: int,
         month: int,
         year: int,
     db: Session = Depends(get_db)
 ):
+
+    # Validate user exists
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     # date range for the month
     start_date = datetime(year, month, 1)
-
     if month == 12:
         end_date = datetime(year + 1, 1, 1)
     else:
         end_date = datetime(year, month + 1, 1)
 
     # Total spent by user in the month
-    total_spent = (
+    total_expense = (
         db.query(func.sum(models.Expense.amount))
+        .filter(models.Expense.user_id == user_id)
         .filter(models.Expense.created_at >= start_date)
         .filter(models.Expense.created_at < end_date)
         .scalar()
-    ) or 0.0
+    )or 0.0
 
     # Group by category
-    results = (
+    category_data = (
         db.query(
             models.Category.name,
             func.sum(models.Expense.amount)
         )
         .join(models.Expense, models.Expense.category_id == models.Category.category_id)
+        .filter(models.Expense.user_id == user_id)
         .filter(models.Expense.created_at >= start_date)
         .filter(models.Expense.created_at < end_date)
         .group_by(models.Category.name)
@@ -125,10 +132,15 @@ def monthly_summary(
     )
 
     # Format results
-    by_category = {name: amount for name, amount in results}
-
+    category_breakdown = [
+        schemas.CategoryExpenseSummary(category_name=name, total=total)
+        for name, total in category_data
+    ]
     # return summary
-    return {
-        "total_spent": float(total_spent),
-        "by_category": by_category
-    }
+    return schemas.ExpenseSummaryResponse(
+        user_id=user_id,
+        year=year,
+        month=month,
+        total_expense=total_expense,
+        category_breakdown=category_breakdown
+    )
