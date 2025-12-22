@@ -4,6 +4,7 @@ from database import models, database, schemas
 from database.database import engine, SessionLocal
 from sqlalchemy import func 
 from datetime import datetime
+from auth import hash_password
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
@@ -32,8 +33,15 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(status_code=400, detail="User already exists")
 
+    # Hash the password
+    hashed_pwd = hash_password(user.password)
+
     # Create new user
-    db_user = models.User(name=user.name, email=user.email)
+    db_user = models.User(
+        name=user.name,
+        email=user.email, 
+        password=hashed_pwd
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)

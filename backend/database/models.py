@@ -10,7 +10,7 @@ class User(Base):
     user_id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)         # User's name
     email = Column(String, unique=True, index=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    password = Column(String, nullable=False) # hashed password
 
     # Relationship with expenses
     expenses = relationship("Expense", back_populates="user")
