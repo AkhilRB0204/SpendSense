@@ -1,10 +1,15 @@
+import re
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 from database import models, database, schemas
 from database.database import engine, SessionLocal
 from sqlalchemy import func 
 from datetime import datetime
-from auth import hash_password
+from auth import hash_password, validate_password, verify_password, create_access_token, validate_email
+from fastapi.security import OAuth2PasswordRequestForm
+from auth import verify_password, create_access_token
+from pydantic import EmailStr, ValidationError
+
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
@@ -28,6 +33,12 @@ def read_root():
 #  USERS 
 @app.post("/users", response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+
+    # Validate email
+    validate_email(user.email)
+
+    validate_password(user.password)
+
     # Check if user already exists
     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
     if existing_user:
@@ -47,6 +58,16 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
+@app.post("/users/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    #Authenticate User
+    user = db.query(models>User).filter(models.User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Create JWT token
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
 #  CATEGORIES 
 @app.post("/categories", response_model=schemas.CategoryResponse)
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):

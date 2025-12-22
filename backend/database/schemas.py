@@ -1,10 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Dict
 from typing import List
 
 # User schemas
 class UserCreate(BaseModel):
     name: str
+    email: EmailStr # ensures valid email
+    password: str
+
+class UserLogin(BaseModel):
     email: str
     password: str
 
