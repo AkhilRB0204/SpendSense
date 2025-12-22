@@ -7,7 +7,6 @@ from sqlalchemy import func
 from datetime import datetime
 from auth import hash_password, validate_password, verify_password, create_access_token, validate_email
 from fastapi.security import OAuth2PasswordRequestForm
-from auth import verify_password, create_access_token
 from pydantic import EmailStr, ValidationError
 
 
@@ -60,14 +59,15 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/users/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    print("FORM DATA:", form_data)
     #Authenticate User
-    user = db.query(models>User).filter(models.User.email == form_data.username).first()
+    user = db.query(models.User).filter(models.User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Create JWT token
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
 #  CATEGORIES 
 @app.post("/categories", response_model=schemas.CategoryResponse)
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
