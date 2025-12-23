@@ -8,6 +8,7 @@ from datetime import datetime
 from auth import hash_password, validate_password, verify_password, create_access_token, validate_email
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr, ValidationError
+from fastapi import Query
 
 
 # Create all tables

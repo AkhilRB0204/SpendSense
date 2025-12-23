@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Dict
 from typing import List
+from datetime import datetime
 
 # User Schemas
 class UserCreate(BaseModel):
