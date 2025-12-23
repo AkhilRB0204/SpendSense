@@ -202,3 +202,73 @@ python -m uvicorn mainmenu:app --reload
 
 
 A small issue, but it reinforced the importance of precision.
+Phase 3 – Authentication, Multi-user Security & Advanced Expense Summaries
+
+Goal
+Secure the backend, support multiple users, and improve expense summary functionality.
+
+What I Built
+
+Authentication & JWT Tokens
+
+POST /users/login endpoint
+
+OAuth2 password flow for login
+
+Access tokens signed with secret key and expiration
+
+Dependency get_current_user to protect endpoints
+
+Password Security
+
+Password hashing with bcrypt via passlib
+
+Passwords never stored in plain text
+
+Multi-user Support & Security
+
+Users can only access their own expenses and summaries
+
+Protected endpoints: /users/{user_id}/expenses/summary, /expenses
+
+Advanced Expense Summaries
+
+Monthly summaries with start and end dates
+
+Category breakdowns returned as dictionaries
+
+No optional fields in responses
+
+Validations for user existence
+
+Problems I Ran Into
+
+401 Unauthorized errors despite correct credentials
+
+Validation errors in schemas (lists vs dicts, missing fields)
+
+Confusion with OAuth2PasswordRequestForm and JWT token logic
+
+Fixes & Improvements
+
+Corrected OAuth2PasswordRequestForm usage and blank fields handling
+
+Fixed JWT generation/decoding logic
+
+Created reusable dependency get_current_user for authentication
+
+Fixed schema validation errors (ExpenseSummaryResponse)
+
+Ensured all endpoints enforce user-specific access
+
+What I Learned
+
+How OAuth2 password flow works in FastAPI
+
+How to hash passwords securely and verify credentials
+
+How to protect endpoints using JWT tokens and dependencies
+
+How to implement multi-user functionality and secure data access
+
+How to structure response models to avoid optional fields
