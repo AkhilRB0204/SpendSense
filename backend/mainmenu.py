@@ -129,22 +129,23 @@ def debug(db: Session = Depends(get_db)):
 @app.get("/users/{user_id}/expenses/summary", response_model=schemas.ExpenseSummaryResponse)
 def monthly_summary(
         user_id: int,
-        month: int,
-        year: int,
+        month: int = Query(..., ge=1, le=12),
+        year: int = Query(..., ge=2000, le=2100),
     db: Session = Depends(get_db)
 ):
-
     # Validate user exists
     user = db.query(models.User).filter(models.User.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # date range for the month
+    # Determine start and end dates
     start_date = datetime(year, month, 1)
     if month == 12:
         end_date = datetime(year + 1, 1, 1)
     else:
         end_date = datetime(year, month + 1, 1)
+
+    total_days = (end_date - start_date).days
 
     # Total spent by user in the month
     total_expense = (
@@ -154,6 +155,8 @@ def monthly_summary(
         .filter(models.Expense.created_at < end_date)
         .scalar()
     )or 0.0
+
+    average_per_day = round(total_expense / total_days, 2) if total_days > 0 else 0.0
 
     # Group by category
     category_data = (
@@ -170,15 +173,16 @@ def monthly_summary(
     )
 
     # Format results
-    category_breakdown = [
-        schemas.CategoryExpenseSummary(category_name=name, total=total)
-        for name, total in category_data
-    ]
+    category_breakdown: Dict[str, float] = {name: round(total, 2) for name, total in category_data}
     # return summary
     return schemas.ExpenseSummaryResponse(
         user_id=user_id,
         year=year,
         month=month,
-        total_expense=total_expense,
-        category_breakdown=category_breakdown
+        total_expense=round(total_expense, 2),
+        by_category=category_breakdown,
+        total_days=total_days,
+        average_per_day=average_per_day,
+        start_date=start_date,
+        end_date=end_date
     )

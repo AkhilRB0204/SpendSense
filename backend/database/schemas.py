@@ -61,6 +61,14 @@ class ExpenseSummaryResponse(BaseModel):
     year: int
     total_spent: float
     by_category: Dict[str, float]  # e.g., {"Food": 120.5, "Transport": 50}
+    total_days: int
+    average_per_day: float
+    start_date: datetime
+    end_date: datetime
 
     class Config:
         from_attributes = True
+    
+class CategoryExpenseSummary(BaseModel):
+    category_name: str
+    total: float
