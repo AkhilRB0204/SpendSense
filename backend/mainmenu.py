@@ -28,96 +28,60 @@ def get_db():
 # root endpoint
 @app.get("/")
 def read_root():
+    # welcome message
     return {"message": "Welcome to SpendSense AI, your personal AI powered expense tracker!"}
 
 #  USERS 
 @app.post("/users", response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
-    # Validate email
+    # Validate email and password
     validate_email(user.email)
-
     validate_password(user.password)
 
     # Check if user already exists
-    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if existing_user:
+    if crud.get_user_by_email(db, user.email):
         raise HTTPException(status_code=400, detail="User already exists")
 
-    # Hash the password
-    hashed_pwd = hash_password(user.password)
+    # Create and return new user
+    return crud.create_user(db, user.name, user.email, user.password)
 
-    # Create new user
-    db_user = models.User(
-        name=user.name,
-        email=user.email, 
-        password=hashed_pwd
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
 
 @app.post("/users/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    print("FORM DATA:", form_data)
-    #Authenticate User
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
+    # Authenticate user
+    user = crud.verify_user_credentials(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
-
-    if not verify_password(form_data.password, user.password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
-    
+    # Generate and return JWT token
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
 #  CATEGORIES 
 @app.post("/categories", response_model=schemas.CategoryResponse)
-def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
+def create_category_endpoint(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
     # Check if category already exists
-    existing_category = db.query(models.Category).filter(models.Category.name == category.name).first()
-    if existing_category:
+    if crud.get_category_by_name(db, category.name):
         raise HTTPException(status_code=400, detail="Category already exists")
-
-    # Create new category
-    db_category = models.Category(name=category.name)
-    db.add(db_category)
-    db.commit()
-    db.refresh(db_category)
-    return db_category
+    # Create and return new category
+    return crud.create_category(db, category.name)
 
 #  EXPENSES 
 @app.post("/expenses", response_model=schemas.ExpenseResponse)
-def create_expense(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
-    # Validate user exists
-    user = db.query(models.User).filter(models.User.user_id == expense.user_id).first()
-    if not user:
+def create_expense_endpoint(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
+    # Check if user exists
+    if not crud.get_user_by_id(db, expense.user_id):
         raise HTTPException(status_code=404, detail="User not found")
-
-    # Validate category exists
-    category = db.query(models.Category).filter(models.Category.category_id == expense.category_id).first()
-    if not category:
+    # Check if category exists
+    if not crud.get_category_by_name(db, expense.category_id):
         raise HTTPException(status_code=404, detail="Category not found")
+    # Create and return new expense
+    return crud.create_expense(db, expense.user_id, expense.category_id, expense.amount, expense.description)
 
-    # Create new expense
-    db_expense = models.Expense(
-        user_id=expense.user_id,
-        category_id=expense.category_id,
-        amount=expense.amount,
-        description=expense.description
-    )
-    db.add(db_expense)
-    db.commit()
-    db.refresh(db_expense)
-    return db_expense
-
+# Debug endpoint to view all data
 @app.get("/debug")
 def debug(db: Session = Depends(get_db)):
     return {
@@ -135,55 +99,11 @@ def monthly_summary(
     db: Session = Depends(get_db)
 ):
     # Validate user exists
-    user = db.query(models.User).filter(models.User.user_id == user_id).first()
-    if not user:
+    if not crud.get_user_by_id(db, user_id):
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Determine start and end dates
-    start_date = datetime(year, month, 1)
-    if month == 12:
-        end_date = datetime(year + 1, 1, 1)
-    else:
-        end_date = datetime(year, month + 1, 1)
+    # Get monthly summary from crud
+    summary = crud.get_monthly_expense_summary(db, user_id, month, year)
 
-    total_days = (end_date - start_date).days
-
-    # Total spent by user in the month
-    total_expense = (
-        db.query(func.sum(models.Expense.amount))
-        .filter(models.Expense.user_id == user_id)
-        .filter(models.Expense.created_at >= start_date)
-        .filter(models.Expense.created_at < end_date)
-        .scalar()
-    )or 0.0
-
-    average_per_day = round(total_expense / total_days, 2) if total_days > 0 else 0.0
-
-    # Group by category
-    category_data = (
-        db.query(
-            models.Category.name,
-            func.sum(models.Expense.amount)
-        )
-        .join(models.Expense, models.Expense.category_id == models.Category.category_id)
-        .filter(models.Expense.user_id == user_id)
-        .filter(models.Expense.created_at >= start_date)
-        .filter(models.Expense.created_at < end_date)
-        .group_by(models.Category.name)
-        .all()
-    )
-
-    # Format results
-    category_breakdown: Dict[str, float] = {name: round(total, 2) for name, total in category_data}
-    # return summary
-    return schemas.ExpenseSummaryResponse(
-        user_id=user_id,
-        year=year,
-        month=month,
-        total_expense=round(total_expense, 2),
-        by_category=category_breakdown,
-        total_days=total_days,
-        average_per_day=average_per_day,
-        start_date=start_date,
-        end_date=end_date
-    )
+    # Return summary with proper schema
+    return schemas.ExpenseSummaryResponse(user_id=user_id, month=month, year=year, **summary)
