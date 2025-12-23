@@ -42,12 +42,14 @@ class ExpenseCreate(BaseModel):
     user_id: int
     category_id: int
     amount: float
+    description: str
 
 class ExpenseResponse(BaseModel):
     expense_id: int
     user_id: int
     category_id: int
     amount: float
+    description: str
     class Config:
         from_attributes = True
 
