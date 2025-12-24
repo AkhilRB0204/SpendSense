@@ -30,11 +30,29 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     expense_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"))
-    category_id = Column(Integer, ForeignKey("categories.category_id"))
+
+    user_id = Column(
+        Integer, 
+        ForeignKey("users.user_id"),
+        nullable=False,
+        index=True
+    )
+
+    category_id = Column(
+        Integer, 
+        ForeignKey("categories.category_id"),
+        nullable=False,
+        index=True
+    )
+
     amount = Column(Float, nullable=False)
-    description = Column(String)
+    description = Column(String, nullable=True)
+
+    expense_date = Column(DateTime, default=datetime.utcnow)
+
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="expenses")

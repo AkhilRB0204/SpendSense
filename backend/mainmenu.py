@@ -9,13 +9,14 @@ from auth import hash_password, validate_password, verify_password, create_acces
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr, ValidationError
 from fastapi import Query
+from database import crud
 
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
-app = FastAPI()
+app = FastAPI(title="SpendSense AI")
 
 # Dependency: get DB session
 def get_db():
@@ -60,6 +61,24 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+
+@app.put("/users/{user_id}", response_model=schemas.UserResponse)
+# Update user details
+def update_user_endpoint(user_id: int, user_update: schemas.UserCreate, db: Session = Depends(get_db)):
+    updated_user = crud.update_user(db, user_id, user_update.name, user_update.email, user_update.password)
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found or deleted")
+    return updated_user
+
+
+@app.delete("/users/{user_id}", response_model=schemas.UserResponse)
+# delete a user
+def delete_user_endpoint(user_id: int, db: Session = Depends(get_db)):
+    deleted_user = crud.soft_delete_user(db, user_id)
+    if not deleted_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return deleted_user
+
 #  CATEGORIES 
 @app.post("/categories", response_model=schemas.CategoryResponse)
 def create_category_endpoint(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
@@ -69,6 +88,25 @@ def create_category_endpoint(category: schemas.CategoryCreate, db: Session = Dep
     # Create and return new category
     return crud.create_category(db, category.name)
 
+def update_category(db: Session, category_id: int, name: str):
+    # Update category name
+    category = get_category_by_id(db, category_id)
+    if not category:
+        return None
+    category.name = name
+    db.commit()
+    db.refresh(category)
+    return category
+
+def delete_category(db: Session, category_id: int):
+    # Delete a category
+    category = get_category_by_id(db, category_id)
+    if not category:
+        return None
+    db.delete(category)
+    db.commit()
+    return category
+
 #  EXPENSES 
 @app.post("/expenses", response_model=schemas.ExpenseResponse)
 def create_expense_endpoint(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
@@ -76,7 +114,7 @@ def create_expense_endpoint(expense: schemas.ExpenseCreate, db: Session = Depend
     if not crud.get_user_by_id(db, expense.user_id):
         raise HTTPException(status_code=404, detail="User not found")
     # Check if category exists
-    if not crud.get_category_by_name(db, expense.category_id):
+    if not crud.get_category_by_id(db, expense.category_id):
         raise HTTPException(status_code=404, detail="Category not found")
     # Create and return new expense
     return crud.create_expense(db, expense.user_id, expense.category_id, expense.amount, expense.description)

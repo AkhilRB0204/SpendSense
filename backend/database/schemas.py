@@ -1,6 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Dict
-from typing import List
+from typing import Dict, List
 from datetime import datetime
 
 # User Schemas
@@ -51,6 +50,10 @@ class ExpenseResponse(BaseModel):
     category_id: int
     amount: float
     description: str
+    expense_date: datetime
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime
     class Config:
         from_attributes = True
 

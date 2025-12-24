@@ -3,13 +3,39 @@ from sqlalchemy import func
 from datetime import datetime
 from database import models
 from auth import hash_password, verify_password
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 #  USERS 
 
+def update_user(db: Session, user_id: int, name: str = None, email: str = None, password: Str = None):
+    # Update user details
+    user = get_user_by_id(db, user_id)
+    if not user:
+        return None
+    if name:
+        user.name = name
+    if email:
+        user.email = email
+    if password:
+        user.password = hash_password(password)
+    db.commit()
+    db.refresh(user)
+    return user
+
+def soft_delete_user(db: Session, user_id: int):
+    # delete a user by setting deleted_at timestamp
+    user = get_user_by_id(db, user_id)
+    if not user:
+        return None
+    user.deleted_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def get_user_by_email(db: Session, email: str):
     # Retrieve a user from the database by email
-    return db.query(models.User).filter(models.User.email == email).first()
+    return db.query(models.User).filter(models.User.email == email, models.User.deleted_at.is_(None)).first()
 
 def get_user_by_id(db: Session, user_id: int):
     # Retrieve a user from the database by user_id
@@ -37,6 +63,10 @@ def get_category_by_name(db: Session, name: str):
     # Retrieve a category by name
     return db.query(models.Category).filter(models.Category.name == name).first()
 
+def get_category_by_id(db: Session, category_id: int):
+    # Retrieve a category by its ID
+    return db.query(models.Category).filter(models.Category.category_id == category_id).first()
+
 def create_category(db: Session, name: str):
     # Create a new category
     db_category = models.Category(name=name)
@@ -59,6 +89,12 @@ def create_expense(db: Session, user_id: int, category_id: int, amount: float, d
     db.commit()
     db.refresh(db_expense)
     return db_expense
+
+
+
+def get_expenses(db: Session):
+    # Retrieve all expenses
+    return db.query(models.Expense).all()
 
 def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int):
     # Compute start and end dates for the month
