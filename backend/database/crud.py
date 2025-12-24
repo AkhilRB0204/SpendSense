@@ -48,7 +48,7 @@ def get_user_by_email(db: Session, email: str):
 
 def get_user_by_id(db: Session, user_id: int):
     # Retrieve a user from the database by user_id
-    return db.query(models.User).filter(models.User.user_id == user_id).first()
+    return db.query(models.User).filter(models.User.user_id == user_id, models.User.deleted_at.is_(None)).first()
 
 
 def verify_user_credentials(db: Session, email: str, password: str):
