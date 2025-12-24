@@ -7,7 +7,7 @@ from typing import Dict, List
 
 #  USERS 
 
-def update_user(db: Session, user_id: int, name: str = None, email: str = None, password: Str = None):
+def update_user(db: Session, user_id: int, name: str = None, email: str = None, password: str = None):
     # Update user details
     user = get_user_by_id(db, user_id)
     if not user:
