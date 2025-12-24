@@ -202,73 +202,102 @@ python -m uvicorn mainmenu:app --reload
 
 
 A small issue, but it reinforced the importance of precision.
+
 Phase 3 – Authentication, Multi-user Security & Advanced Expense Summaries
 
-Goal
+Goal:
 Secure the backend, support multiple users, and improve expense summary functionality.
 
 What I Built
 
-Authentication & JWT Tokens
+1. Authentication & JWT Tokens
 
-POST /users/login endpoint
+Implemented POST /users/login endpoint using OAuth2 password flow.
 
-OAuth2 password flow for login
+Generated JWT access tokens with a secret key and expiration.
 
-Access tokens signed with secret key and expiration
+Added a reusable get_current_user dependency to protect sensitive endpoints.
 
-Dependency get_current_user to protect endpoints
+Authentication logic is centralized in crud.py:
 
-Password Security
+verify_user_credentials checks email and password.
 
-Password hashing with bcrypt via passlib
+create_access_token generates signed tokens.
 
-Passwords never stored in plain text
+2. Password Security
 
-Multi-user Support & Security
+Passwords are hashed securely with bcrypt via passlib.
 
-Users can only access their own expenses and summaries
+Plaintext passwords are never stored.
 
-Protected endpoints: /users/{user_id}/expenses/summary, /expenses
+Verification handled in crud.py for reuse across endpoints.
 
-Advanced Expense Summaries
+3. Multi-user Support & Security
 
-Monthly summaries with start and end dates
+Users can only access their own expenses and summaries.
 
-Category breakdowns returned as dictionaries
+Endpoints /users/{user_id}/expenses/summary and /expenses are protected using get_current_user.
 
-No optional fields in responses
+CRUD operations enforce user-specific access:
 
-Validations for user existence
+get_user_by_id ensures the user exists.
+
+create_expense links expenses to the correct user and category.
+
+4. Advanced Expense Summaries
+
+Monthly summaries include start and end dates.
+
+Category breakdowns returned as dictionaries, calculated in crud.py.
+
+Responses include all fields—no optional data.
+
+Summary calculations handle:
+
+Total spent
+
+Average per day
+
+Total days in month
+
+Spending per category
+
+5. Simplified mainmenu.py
+
+Centralizing logic in crud.py allowed mainmenu.py endpoints to be cleaner and shorter.
+
+Endpoints now focus only on request handling and response formatting, while crud.py handles the heavy lifting.
 
 Problems I Ran Into
 
-401 Unauthorized errors despite correct credentials
+401 Unauthorized errors despite correct credentials.
 
-Validation errors in schemas (lists vs dicts, missing fields)
+Schema validation errors (lists vs dictionaries, missing fields).
 
-Confusion with OAuth2PasswordRequestForm and JWT token logic
+Confusion around OAuth2PasswordRequestForm and JWT token logic.
 
 Fixes & Improvements
 
-Corrected OAuth2PasswordRequestForm usage and blank fields handling
+Corrected handling of blank fields in OAuth2PasswordRequestForm.
 
-Fixed JWT generation/decoding logic
+Fixed JWT generation and decoding logic.
 
-Created reusable dependency get_current_user for authentication
+Created reusable get_current_user dependency for authentication.
 
-Fixed schema validation errors (ExpenseSummaryResponse)
+Resolved schema validation issues in ExpenseSummaryResponse.
 
-Ensured all endpoints enforce user-specific access
+Enforced user-specific access in all CRUD functions.
 
 What I Learned
 
-How OAuth2 password flow works in FastAPI
+How OAuth2 password flow works in FastAPI.
 
-How to hash passwords securely and verify credentials
+How to hash passwords securely and verify credentials.
 
-How to protect endpoints using JWT tokens and dependencies
+How to protect endpoints using JWT tokens and dependencies.
 
-How to implement multi-user functionality and secure data access
+How to implement multi-user functionality and secure data access.
 
-How to structure response models to avoid optional fields
+How to structure response models to avoid optional fields.
+
+How to centralize business logic in crud.py and simplify endpoint code.
