@@ -11,6 +11,7 @@ class User(Base):
     name = Column(String, nullable=False)         # User's name
     email = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False) # hashed password
+    deleted_at = Column(DateTime, nullable=True) # delete column
 
     # Relationship with expenses
     expenses = relationship("Expense", back_populates="user")

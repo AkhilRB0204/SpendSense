@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime
 
 # User Schemas
@@ -53,7 +53,7 @@ class ExpenseResponse(BaseModel):
     expense_date: datetime
     created_at: datetime
     updated_at: datetime
-    deleted_at: datetime
+    deleted_at: Optional[datetime] = None 
     class Config:
         from_attributes = True
 
@@ -63,7 +63,7 @@ class ExpenseSummaryResponse(BaseModel):
     user_id: int
     month: int
     year: int
-    total_spent: float
+    total_expense: float
     by_category: Dict[str, float]  # e.g., {"Food": 120.5, "Transport": 50}
     total_days: int
     average_per_day: float
