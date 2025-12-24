@@ -88,21 +88,23 @@ def create_category_endpoint(category: schemas.CategoryCreate, db: Session = Dep
     # Create and return new category
     return crud.create_category(db, category.name)
 
-def update_category(db: Session, category_id: int, name: str):
-    # Update category name
-    category = get_category_by_id(db, category_id)
+@app.put("/categories/{category_id}", response_model=schemas.CategoryResponse)
+def update_category_endpoint(category_id: int, category_update: schemas.CategoryCreate, db: Session = Depends(get_db)):
+    #Update a category
+    category = crud.get_category_by_id(db, category_id)
     if not category:
-        return None
-    category.name = name
+        raise HTTPException(status_code=404, detail="Category not found")
+    category.name = category_update.name
     db.commit()
     db.refresh(category)
     return category
 
-def delete_category(db: Session, category_id: int):
-    # Delete a category
-    category = get_category_by_id(db, category_id)
+@app.delete("/categories/{category_id}", response_model=schemas.CategoryResponse)
+def delete_category_endpoint(category_id: int, db: Session = Depends(get_db)):
+    #Delete a category
+    category = crud.get_category_by_id(db, category_id)
     if not category:
-        return None
+        raise HTTPException(status_code=404, detail="Category not found")
     db.delete(category)
     db.commit()
     return category
@@ -118,6 +120,28 @@ def create_expense_endpoint(expense: schemas.ExpenseCreate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Category not found")
     # Create and return new expense
     return crud.create_expense(db, expense.user_id, expense.category_id, expense.amount, expense.description)
+
+@app.put("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+def update_expense_endpoint(expense_id: int, expense_update: schemas.ExpenseCreate, db: Session = Depends(get_db)):
+    # Update an expense
+    updated_expense = crud.update_expense(
+        db,
+        expense_id,
+        amount=expense_update.amount,
+        description=expense_update.description,
+        category_id=expense_update.category_id
+    )
+    if not updated_expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return updated_expense
+
+@app.delete("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+def delete_expense_endpoint(expense_id: int, db: Session = Depends(get_db)):
+    # Soft delete an expense
+    deleted_expense = crud.soft_delete_expense(db, expense_id)
+    if not deleted_expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return deleted_expense
 
 # Debug endpoint to view all data
 @app.get("/debug")

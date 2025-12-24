@@ -7,6 +7,15 @@ from typing import Dict, List
 
 #  USERS 
 
+def create_user(db: Session, name: str, email: str, password: str):
+    # Hash the password and create a new user
+    hashed_pwd = hash_password(password)
+    db_user = models.User(name=name, email=email, password=hashed_pwd)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
 def update_user(db: Session, user_id: int, name: str = None, email: str = None, password: str = None):
     # Update user details
     user = get_user_by_id(db, user_id)
@@ -41,14 +50,6 @@ def get_user_by_id(db: Session, user_id: int):
     # Retrieve a user from the database by user_id
     return db.query(models.User).filter(models.User.user_id == user_id).first()
 
-def create_user(db: Session, name: str, email: str, password: str):
-    # Hash the password and create a new user
-    hashed_pwd = hash_password(password)
-    db_user = models.User(name=name, email=email, password=hashed_pwd)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
 
 def verify_user_credentials(db: Session, email: str, password: str):
     # Verify user credentials; return user if valid, else None
@@ -90,7 +91,34 @@ def create_expense(db: Session, user_id: int, category_id: int, amount: float, d
     db.refresh(db_expense)
     return db_expense
 
+def get_expense_by_id(db: Session, expense_id: int):
+    # Retrieve an expense by its ID
+    return db.query(models.Expense).filter(models.Expense.expense_id == expense_id).first()
 
+def update_expense(db: Session, expense_id: int, amount: float = None, description: str = None, category_id: int = None):
+    # Update expense details
+    expense = get_expense_by_id(db, expense_id)
+    if not expense:
+        return None
+    if amount is not None:
+        expense.amount = amount
+    if description is not None:
+        expense.description = description
+    if category_id is not None:
+        expense.category_id = category_id
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+def soft_delete_expense(db: Session, expense_id: int):
+    # Soft delete an expense by setting deleted_at timestamp
+    expense = get_expense_by_id(db, expense_id)
+    if not expense:
+        return None
+    expense.deleted_at = datetime.utcnow()
+    db.commit()
+    db.refresh(expense)
+    return expense
 
 def get_expenses(db: Session):
     # Retrieve all expenses
