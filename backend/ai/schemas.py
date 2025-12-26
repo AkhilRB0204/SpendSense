@@ -3,6 +3,9 @@ from typing import Optional, Dict, Any, Literal, List
 from datetime import datetime
 from enum import Enum
 
+# This file contains the Pydantic schemas for the AI functionality of SpendSense. It defines the request and response models, time ranges, intent types, and parsed intent structures used for interpreting and handling user queries through the AI system.
+
+
 # AI Request Schema
 class AIRequest(BaseModel):
     user_id: int # ID of the user making the AI request
