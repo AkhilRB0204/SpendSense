@@ -31,3 +31,34 @@ def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
         response="I couldn’t fully understand that request yet.",
         execution_status="failed"
     )
+
+def get_monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    """Calculate the total spending for a given month and year."""
+    query = db.query(func.sum(models.Expense.amount)).filter(
+        models.Expense.user_id == user_id,
+        models.Expense.deleted_expense == False
+    )
+    
+    # Apply time filters if provided
+    if parsed_intent.time:
+        if parsed_intent.time.month:
+            query = query.filter(func.extract('month', models.Expense.date) == parsed_intent.time.month)
+        if parsed_intent.time.year:
+            query = query.filter(func.extract('year', models.Expense.date) == parsed_intent.time.year)
+    
+    total_spending = query.scalar() or 0.0
+
+    if parsed_intent.time and parsed_intent.time.month and parsed_intent.time.year:
+        response_text = (
+            f"Your total spending for "
+            f"{parsed_intent.time.month}/{parsed_intent.time.year} "
+            f"is ${total_spending:.2f}."
+        )
+    else:
+        response_text = f"Your total recorded spending is ${total_spending:.2f}."
+
+    return AIResponse(
+        response=response_text,
+        data={"total_spending": round(total_spending, 2)},
+        execution_status="success"
+    )
