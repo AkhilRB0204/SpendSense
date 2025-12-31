@@ -18,6 +18,7 @@ useful pieces like intent, time, and category.
 """
 
 def parse_intent(query: str) -> ParsedIntent:
+    "Parse the user's query and return a structured ParsedIntent object."
     normalized_query = _normalize_query(query)
 
     intent = _detect_intent(normalized_query)
@@ -33,6 +34,7 @@ def parse_intent(query: str) -> ParsedIntent:
     )
 
 def _normalize_query(query: str) -> str:
+    "Normalize the query by lowercasing and removing punctuation."
     query = query.lower().strip()
     query = re.sub(r'[^\w\s]', '', query)  # Remove punctuation
     return query
