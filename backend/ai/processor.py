@@ -87,3 +87,39 @@ def get_monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) ->
             data={"by_category": breakdown},
             execution_status="success"
         )
+
+    def get_highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+        """Identify the category with the highest spending for a given month and year."""
+        month = parsed_intent.time.month if parsed_intent.time else None
+        year = parsed_intent.time.year if parsed_intent.time else None
+        query = (
+            db.query(
+                models.Category.name,
+                func.sum(models.Expense.amount).label("total_amount")
+            )
+            .join(models.Expense, models.Expense.category_id == models.Category.id)
+            .filter(models.Expense.user_id == user_id)
+            .filter(models.Expense.deleted_at.is_(None))
+        )
+
+    if month:
+        query = query.filter(func.extract('month', models.Expense.created_at) == month)
+    if year:
+        query = query.filter(func.extract('year', models.Expense.created_at) == year)
+
+    # Group by category and order descending by total
+    result = query.group_by(models.Category.name).order_by(func.sum(models.Expense.amount).desc()).first()
+
+    # No expenses found
+    if not result:
+        return AIResponse(
+            response="No expenses found for the specified time range.",
+            execution_status="failed"
+        )
+
+    category, total_amount = result
+    return AIResponse(
+        response=f"Your highest spending category is '{category}' with ${total_amount:.2f}.",
+        data={"category": category, "amount": float(total_amount)},
+        execution_status="success"
+    )
