@@ -62,3 +62,28 @@ def get_monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) ->
         data={"total_spending": round(total_spending, 2)},
         execution_status="success"
     )
+
+    def get_category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    #Provide a breakdown of spending by category for a given month and year
+        month = parsed_intent.time.month if parsed_intent.time else None
+        year = parsed_intent.time.year if parsed_intent.time else None
+        query = db.query(models.Category.name, func.sum(models.Expense.amount))\
+            .join(models.Expense, models.Expense.category_id == models.Category.id)\
+            .filter(models.Expense.user_id == user_id)\
+            .filter(models.Expense.deleted_at.is_(None))
+
+        if month:
+            query = query.filter(func.extract('month', models.Expense.created_at) == month)
+        if year:
+            query = query.filter(func.extract('year', models.Expense.created_at) == year)
+
+        query = query.group_by(models.Category.name)
+        results = query.all()
+
+        breakdown = {name: float(amount) for name, amount in results}
+
+        return AIResponse(
+            response=f"Here's your category breakdown.",
+            data={"by_category": breakdown},
+            execution_status="success"
+        )
