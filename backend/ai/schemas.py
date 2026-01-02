@@ -47,7 +47,6 @@ class IntentType(str, Enum):
     spending_trend = "spending_trend"
     highest_spend_category = "highest_spend_category"
     compare_months = "compare_months"
-    top_merchants = "top_merchants"
     forecast = "forecast"
 
 class QueryType(str, Enum):

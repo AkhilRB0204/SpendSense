@@ -2,7 +2,7 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import models
-from datetime import datetime
+from datetime import datetime, timedelta
 from .schemas import (
     AIResponse,
     IntentType,
@@ -32,14 +32,27 @@ def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
         execution_status="failed"
     )
 
+def fetch_monthly_total(db: Session, user_id: int, month: int, year: int) -> float:
+    """Helper to fetch total spending for a given month/year."""
+    return (
+        db.query(func.sum(models.Expense.amount))
+        .filter(
+            models.Expense.user_id == user_id,
+            models.Expense.deleted_at.is_(None),
+            func.extract('month', models.Expense.date) == month,
+            func.extract('year', models.Expense.date) == year
+        )
+        .scalar() or 0.0
+    )
+
+
 def get_monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Calculate the total spending for a given month and year."""
     query = db.query(func.sum(models.Expense.amount)).filter(
         models.Expense.user_id == user_id,
-        models.Expense.deleted_expense == False
+        models.Expense.deleted_at.is_(None)  # fixed deleted_expense -> deleted_at
     )
     
-    # Apply time filters if provided
     if parsed_intent.time:
         if parsed_intent.time.month:
             query = query.filter(func.extract('month', models.Expense.date) == parsed_intent.time.month)
@@ -63,44 +76,38 @@ def get_monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) ->
         execution_status="success"
     )
 
-    def get_category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+def get_category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     #Provide a breakdown of spending by category for a given month and year
-        month = parsed_intent.time.month if parsed_intent.time else None
-        year = parsed_intent.time.year if parsed_intent.time else None
-        query = db.query(models.Category.name, func.sum(models.Expense.amount))\
-            .join(models.Expense, models.Expense.category_id == models.Category.id)\
-            .filter(models.Expense.user_id == user_id)\
-            .filter(models.Expense.deleted_at.is_(None))
+    month = parsed_intent.time.month if parsed_intent.time else None
+    year = parsed_intent.time.year if parsed_intent.time else None
+    query = db.query(models.Category.name, func.sum(models.Expense.amount))\
+        .join(models.Expense, models.Expense.category_id == models.Category.id)\
+        .filter(models.Expense.user_id == user_id)\
+        .filter(models.Expense.deleted_at.is_(None))
 
-        if month:
-            query = query.filter(func.extract('month', models.Expense.created_at) == month)
-        if year:
-            query = query.filter(func.extract('year', models.Expense.created_at) == year)
+    if month:
+        query = query.filter(func.extract('month', models.Expense.created_at) == month)
+    if year:
+        query = query.filter(func.extract('year', models.Expense.created_at) == year)
 
-        query = query.group_by(models.Category.name)
-        results = query.all()
+    query = query.group_by(models.Category.name)
+    results = query.all()
 
-        breakdown = {name: float(amount) for name, amount in results}
+    breakdown = {name: float(amount) for name, amount in results}
 
-        return AIResponse(
-            response=f"Here's your category breakdown.",
-            data={"by_category": breakdown},
-            execution_status="success"
-        )
+    return AIResponse(
+        response=f"Here's your category breakdown.",
+        data={"by_category": breakdown},
+        execution_status="success"
+    )
 
-    def get_highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
-        """Identify the category with the highest spending for a given month and year."""
-        month = parsed_intent.time.month if parsed_intent.time else None
-        year = parsed_intent.time.year if parsed_intent.time else None
-        query = (
-            db.query(
-                models.Category.name,
-                func.sum(models.Expense.amount).label("total_amount")
-            )
-            .join(models.Expense, models.Expense.category_id == models.Category.id)
-            .filter(models.Expense.user_id == user_id)
-            .filter(models.Expense.deleted_at.is_(None))
-        )
+def get_highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    month = parsed_intent.time.month if parsed_intent.time else None
+    year = parsed_intent.time.year if parsed_intent.time else None
+    """Identify the category with the highest spending for a given month and year."""
+    query = query = db.query(models.Category.name, func.sum(models.Expense.amount).label("total_amount"))\
+        .join(models.Expense, models.Expense.category_id == models.Category.id)\
+        .filter(models.Expense.user_id == user_id, models.Expense.deleted_at.is_(None))
 
     if month:
         query = query.filter(func.extract('month', models.Expense.created_at) == month)
@@ -121,5 +128,76 @@ def get_monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) ->
     return AIResponse(
         response=f"Your highest spending category is '{category}' with ${total_amount:.2f}.",
         data={"category": category, "amount": float(total_amount)},
+        execution_status="success"
+    )
+
+def compare_months(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    """Compare spending between two specified months."""
+    filters = parsed_intent.filters or {}
+    month1, year1 = filters.get("month1"), filters.get("year1")
+    month2, year2 = filters.get("month2"), filters.get("year2")
+
+    if not all([month1, year1, month2, year2]):
+        return AIResponse(
+            response="Please provide both months and years to compare.",
+            execution_status="failed"
+        )
+    
+
+    def total_for_month(m, y):
+        return (
+            db.query(func.sum(models.Expense.amount))
+            .filter(
+                models.Expense.user_id == user_id,
+                models.Expense.deleted_at.is_(None),
+                func.extract('month', models.Expense.created_at) == m,
+                func.extract('year', models.Expense.created_at) == y
+            )
+            .scalar() or 0.0
+        )
+    t1, t2 = total_for_month(month1, year1), total_for_month(month2, year2)
+    return AIResponse(
+        response=f"Total spending for {month1}/{year1} is ${t1:.2f}, and for {month2}/{year2} is ${t2:.2f}.",
+        data={"month_total": t1, "month2_total": t2},
+        execution_status="success"
+)
+def get_spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    """Analyze spending trend over the past N months."""
+    n_months = parsed_intent.filters.get("n_months", 6) if parsed_intent.filters else 6
+    end_date = datetime.now()
+    start_date = end_date.replace(day=1)
+    for _ in range(n_months):
+        start_date = (start_date.replace(day=1) - timedelta(days=1)).replace(day=1)
+
+    query = db.query(
+        func.extract('year', models.Expense.created_at).label('year'),
+        func.extract('month', models.Expense.created_at).label('month'),
+        func.sum(models.Expense.amount).label('total_amount')
+    ).filter(
+        models.Expense.user_id == user_id,
+        models.Expense.deleted_at.is_(None),
+        models.Expense.created_at >= start_date,
+        models.Expense.created_at < end_date
+    ).group_by(
+        func.extract('year', models.Expense.created_at),
+        func.extract('month', models.Expense.created_at)
+    ).order_by(
+        func.extract('year', models.Expense.created_at),
+        func.extract('month', models.Expense.created_at)
+    )
+
+    results = query.all()
+    trend = [
+        {
+            "year": int(year),
+            "month": int(month),
+            "total_amount": float(total_amount)
+        }
+        for year, month, total_amount in results
+    ]
+
+    return AIResponse(
+        response=f"Here's your spending trend over the past {n_months} months.",
+        data={"trend": trend},
         execution_status="success"
     )
