@@ -120,7 +120,7 @@ def create_expense_endpoint(expense: schemas.ExpenseCreate, db: Session = Depend
     if not crud.get_category_by_id(db, expense.category_id):
         raise HTTPException(status_code=404, detail="Category not found")
     # Create and return new expense
-    return crud.create_expense(db, expense.user_id, expense.category_id, expense.amount, expense.description)
+    return crud.create_expense(db, expense.user_id, expense.category_id, expense.amount, expense.description, expense_date=expense.created_at)
 
 @app.put("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
 def update_expense_endpoint(expense_id: int, expense_update: schemas.ExpenseCreate, db: Session = Depends(get_db)):

@@ -1,6 +1,6 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, condecimal, validator
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 # User Schemas
 class UserCreate(BaseModel):
@@ -43,6 +43,19 @@ class ExpenseCreate(BaseModel):
     category_id: int
     amount: float
     description: str
+    created_at: Optional[date] = None
+
+    @validator("created_at", pre=True, always=True)
+    def parse_created_at(cls, v):
+        if v is None:
+            return datetime.utcnow()
+        try:
+            # Convert DD/MM/YYYY string -> datetime
+            return datetime.strptime(v, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("created_at must be in DD/MM/YYYY format")
+
+
 
 class ExpenseResponse(BaseModel):
     expense_id: int

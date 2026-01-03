@@ -84,7 +84,8 @@ def create_expense(db: Session, user_id: int, category_id: int, amount: float, d
         user_id=user_id,
         category_id=category_id,
         amount=amount,
-        description=description
+        description=description,
+        created_at=date if date else datetime.utcnow()
     )
     db.add(db_expense)
     db.commit()
