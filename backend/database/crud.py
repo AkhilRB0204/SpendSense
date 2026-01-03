@@ -78,14 +78,14 @@ def create_category(db: Session, name: str):
 
 #  EXPENSES 
 
-def create_expense(db: Session, user_id: int, category_id: int, amount: float, description: str):
+def create_expense(db: Session, user_id: int, category_id: int, amount: float, description: str, created_at: datetime = None):
     # Create a new expense linked to a user and category
     db_expense = models.Expense(
         user_id=user_id,
         category_id=category_id,
         amount=amount,
         description=description,
-        created_at=date if date else datetime.utcnow()
+        created_at=created_at if created_at else datetime.utcnow()
     )
     db.add(db_expense)
     db.commit()

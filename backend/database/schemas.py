@@ -43,17 +43,18 @@ class ExpenseCreate(BaseModel):
     category_id: int
     amount: float
     description: str
-    created_at: Optional[date] = None
+    created_at: Optional[datetime] = None
 
     @validator("created_at", pre=True, always=True)
     def parse_created_at(cls, v):
         if v is None:
             return datetime.utcnow()
         try:
-            # Convert DD/MM/YYYY string -> datetime
-            return datetime.strptime(v, "%d/%m/%Y")
+            # Parse MM/DD/YYYY format
+            return datetime.strptime(v, "%m/%d/%Y")
         except ValueError:
-            raise ValueError("created_at must be in DD/MM/YYYY format")
+            raise ValueError("created_at must be in MM/DD/YYYY format, e.g., 12/15/2025")
+
 
 
 
