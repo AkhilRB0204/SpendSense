@@ -12,7 +12,7 @@ from .schemas import (
 def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse: 
     """Process the AI query based on the parsed intent and return an appropriate response."""
     if parsed_intent.intent == IntentType.monthly_total:
-        return get_monthly_total(parsed_intent, db, user_id)
+        return monthly_total(parsed_intent, db, user_id)
     
     if parsed_intent.intent == IntentType.category_breakdown:
         return get_category_breakdown(parsed_intent, db, user_id)
@@ -41,7 +41,7 @@ def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
         execution_status="failed"
     )
 
-def fetch_monthly_total(db: Session, user_id: int, month: int, year: int) -> float:
+def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int) -> float:
     """Helper to fetch total spending for a given month/year."""
     return (
         db.query(func.sum(models.Expense.amount))

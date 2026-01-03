@@ -154,8 +154,8 @@ def debug(db: Session = Depends(get_db)):
     }
 
 # Ai query endpoint
-@app.post("/ai/query", response_model=schemas.AIResponse)
-def ai_query(request: schemas.AIRequest, db: Session = Depends(get_db)):
+@app.post("/ai/query", response_model=AIResponse)
+def ai_query(request: AIRequest, db: Session = Depends(get_db)):
     # Validate user exists
     current_user = crud.get_user_by_id(db, request.user_id)
     if current_user is None or current_user.deleted_at:
@@ -167,14 +167,7 @@ def ai_query(request: schemas.AIRequest, db: Session = Depends(get_db)):
     # Process AI query via processor
     result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user.user_id)
 
-    return schemas.AIResponse(
-        response=result.get("response"),
-        data=result.get("data"),
-        confidence=result.get("confidence"),
-        suggestions=result.get("suggestions"),
-        next_action=result.get("next_action"),
-        execution_status="success"
-    )
+    return result 
 
 
 

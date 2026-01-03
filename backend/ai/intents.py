@@ -22,7 +22,7 @@ Query_KEYWORDS: Dict[QueryType, List[str]] = {
 
 def identify_intent(query: str) -> IntentType:
     "Identify the intent type from the user's query."
-    query = query.lower()
+    normalized_query = query.lower()
     for intent, keywords in Intent_KEYWORDS.items():
         if any(keyword in normalized_query for keyword in keywords):
             return intent
@@ -30,7 +30,7 @@ def identify_intent(query: str) -> IntentType:
 
 def identify_query_type(query: str) -> QueryType:
     "Identify the query type from the user's query."
-    query = query.lower()
+    normalized_query = query.lower()
     for qtype, keywords in Query_KEYWORDS.items():
         if any(keyword in normalized_query for keyword in keywords):
             return qtype
