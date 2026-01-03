@@ -11,6 +11,7 @@ Intent_KEYWORDS: Dict[IntentType, List[str]] = {
     IntentType.forecast: ["forecast", "predict", "spending forecast"],
     IntentType.detect_anomalies: ["detect anomalies", "unusual spending", "anomaly detection"],
     IntentType.budget_suggestions: ["budget suggestions", "spending advice", "budget tips"],
+    IntentType.highest_expense: ["highest expense", "biggest expense", "largest spending"],
 }
 
 # Mapping of QueryType to trigger keywords/phrases

@@ -35,6 +35,9 @@ def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
     if parsed_intent.intent == IntentType.budget_suggestions:
         return budget_suggestions(parsed_intent, db, user_id)
 
+    if parsed_intent.intent == IntentType.highest_expense:
+        return highest_expense(parsed_intent, db, user_id)
+
     # faillback response for unhandled intents
     return AIResponse(
         response="I couldn’t fully understand that request yet.",
@@ -137,6 +140,40 @@ def highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: in
     return AIResponse(
         response=f"Your highest spending category is '{category}' with ${total_amount:.2f}.",
         data={"category": category, "amount": float(total_amount)},
+        execution_status="success"
+    )
+
+def highest_expense(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    """Identify the single highest expense for a given month and year."""
+    month = parsed_intent.time.month if parsed_intent.time else None
+    year = parsed_intent.time.year if parsed_intent.time else None
+
+    query = db.query(models.Expense).filter(
+        models.Expense.user_id == user_id,
+        models.Expense.deleted_at.is_(None)
+    )
+
+    if month:
+        query = query.filter(func.extract('month', models.Expense.created_at) == month)
+    if year:
+        query = query.filter(func.extract('year', models.Expense.created_at) == year)
+
+    highest_expense = query.order_by(models.Expense.amount.desc()).first()
+
+    if not highest_expense:
+        return AIResponse(
+            response="No expenses found for the specified time range.",
+            execution_status="failed"
+        )
+
+    return AIResponse(
+        response=f"Your highest expense is ${highest_expense.amount:.2f} for '{highest_expense.description}'.",
+        data={
+            "expense_id": highest_expense.expense_id,
+            "amount": float(highest_expense.amount),
+            "description": highest_expense.description,
+            "date": highest_expense.created_at.isoformat()
+        },
         execution_status="success"
     )
 

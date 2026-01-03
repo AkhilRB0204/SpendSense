@@ -1,4 +1,4 @@
-SpendSense – Development Progress Log (Up to Phase 2)
+SpendSense – Development Progress Log 
 Overview
 
 This document tracks my development progress on SpendSense, an AI-powered expense tracking backend. I’m writing it to honestly capture what I built, what broke, what I fixed, and what I learned along the way — not just the final outcome.
@@ -301,3 +301,19 @@ How to implement multi-user functionality and secure data access.
 How to structure response models to avoid optional fields.
 
 How to centralize business logic in crud.py and simplify endpoint code.
+
+Phase 4: AI Integration 
+
+In Phase 4, my goal was to incorporate AI capabilities in SpendSense, allowing users to engage their expenses using natural language queries. This was aimed at creating an intelligent application, as opposed to just being a simple transactional tool.
+
+In my first task, I worked on building a query-to-intent mapping function so that the AI is able to deduce the user’s intent, which could range from total spend for a given month to maximum spend, organizational spend details, and anomaly detection. This is done by defining a structure that defines different intents (IntentType) and associates them with typical patterns in user queries. This includes mapping sentences such as “largest spending” or “biggest expense” to the highest_expense intent.
+
+After the intention has been determined, the related function in the processor behaves in the manner of conducting a database inquiry. These functions are diverse; some may be known as functions related to the determination of the monthly sum, formulation of the categories report, spending prediction indicators, and anomaly reports made on the basis of past data.
+
+An important challenge was handling date parsing for queries. Users might input dates in different formats, like 12/15/2025 versus 2025-12-15. To make the AI robust, I implemented validators that convert user inputs to standardized datetime objects, ensuring the queries could be processed correctly.
+
+Another difficulty was ensuring accurate responses. It wasn’t enough for the AI to return raw numbers- the responses needed context, clarity, and actionable insights. For example, when I first asked about my biggest expense of the month, the AI returned the total which is not what I was looking for. I created a function that would categorize  expenses and return the expense based on what the user would ask. For example, if the user were to ask "What is the bigest expense for the month", the AI would respond: “Your highest spending category in December 2025 was ‘Housing’ at $1,099.00.”
+
+Finally, integrating this with the FastAPI backend revealed some subtle bugs, particularly around database joins and filters for deleted or missing records. Resolving these required careful debugging and testing of multiple query scenarios to ensure the AI consistently returns reliable and meaningful results.
+
+Overall, Phase 4 made SpendSense into a more intelligent tool with improved functionality. Users can now interact, with their financial data, receiving instant insights that go beyond simple tracking such as giving suggestions and finding ways to help the users be more accountable and have better awareness of their expenses. This phase was both technically challenging and highly rewarding, pushing me to solve problems across AI logic, database querying, and user experience.
