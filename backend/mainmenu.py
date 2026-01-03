@@ -11,6 +11,7 @@ from pydantic import EmailStr, ValidationError
 
 from ai.processor import process_ai_query
 from ai.intents import parse_intent_from_query
+from ai.schemas import AIRequest, AIResponse, ParsedIntent, TimeRange, IntentType, QueryType
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
