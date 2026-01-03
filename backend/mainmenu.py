@@ -1,16 +1,16 @@
 import re
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query, Body
 from sqlalchemy.orm import Session
-from database import models, database, schemas
+from database import models, database, schemas, crud
 from database.database import engine, SessionLocal
-from sqlalchemy import func 
+from sqlalchemy import func
 from datetime import datetime
 from auth import hash_password, validate_password, verify_password, create_access_token, validate_email
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import EmailStr, ValidationError
-from fastapi import Query
-from database import crud
 
+from ai.processor import process_ai_query
+from ai.intents import parse_intent_from_query
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
@@ -151,6 +151,11 @@ def debug(db: Session = Depends(get_db)):
         "categories": db.query(models.Category).all(),
         "expenses": db.query(models.Expense).all()
     }
+
+# Ai query endpoint
+@app.post("/ai/query", response_model=schemas.AIResponse)
+def ai_query(request: schemas.AIRequest, db: Session = Depends(get_db)):
+    
 
 #  Monthly Expense Summary
 @app.get("/users/{user_id}/expenses/summary", response_model=schemas.ExpenseSummaryResponse)

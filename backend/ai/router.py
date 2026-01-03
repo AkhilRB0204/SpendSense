@@ -17,23 +17,18 @@ router = APIRouter(prefix="/ai", tags=["AI"])
 @router.post("/ai/query", response_model=AIResponse)
 def ai_query_endpoint(
     request: AIRequest,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
+    current_user = get_user_by_id(db, request.user_id)
 
     # Check if user is deleted
-    if current_user.deleted_user:
-        raise HTTPException(status_code=404, detail="User account is deleted")
-
-    # Check if user ID in request matches current user
-    if request.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Unauthorized access to user data")
+    if current_user is None or current_user.deleted_user:
+        raise HTTPException(status_code=404, detail="User not found or inactive")
 
     
 # parse and process intent
 parsed_intent = parse_intent(request.query)
-result = process_ai_query(parsed_intent=parsed_intent, user_id=current_user.user_id, db=db)
-
+result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user.user_id)
 return AIResponse(
     response=result("response"),
     data=result.get("data"),

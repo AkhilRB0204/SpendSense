@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 from typing import Optional
-
+from .intents import identify_intent, identify_query_type
 from .schemas import ParsedIntent, IntentType, TimeRange, QueryType
 
 """
@@ -17,10 +17,11 @@ All it does is figure out what the user is asking for and pull out
 useful pieces like intent, time, and category.
 """
 
+CATEGORIES = ['food', 'entertainment', 'utilities', 'transportation', 'health', 'shopping']
+
 def parse_intent(query: str) -> ParsedIntent:
     "Parse the user's query and return a structured ParsedIntent object."
     normalized_query = _normalize_query(query)
-
     intent = _detect_intent(normalized_query)
     time_range = _extract_time(normalized_query)
     category = _extract_category(normalized_query)
@@ -30,7 +31,7 @@ def parse_intent(query: str) -> ParsedIntent:
         time=time_range,
         category=category,
         raw_query=query,
-        query_type=_determine_query_type(normalized_query)
+        query_type=identify_query_type(normalized_query)
     )
 
 def _normalize_query(query: str) -> str:
@@ -52,10 +53,12 @@ def _detect_intent(query: str) -> IntentType:
         return IntentType.highest_spend_category
     elif "compare" in query and "months" in query:
         return IntentType.compare_months
-    elif "top merchants" in query or "frequent merchants" in query:
-        return IntentType.top_merchants
     elif "forecast" in query or "predict" in query:
         return IntentType.forecast
+    elif "anomaly" in query or "unusual" in query:
+        return IntentType.detect_anomalies
+    elif "budget" in query or "suggestion" in query:
+        return IntentType.budget_suggestions
     else:
         return IntentType.monthly_total  # Default intent
 

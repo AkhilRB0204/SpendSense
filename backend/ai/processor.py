@@ -1,7 +1,7 @@
 from typing import Any, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import models
+from database import models, crud
 from datetime import datetime, timedelta
 from .schemas import (
     AIResponse,
@@ -25,6 +25,15 @@ def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
     
     if parsed_intent.intent == IntentType.compare_months:
         return compare_months(parsed_intent, db, user_id)
+    
+    if parsed_intent.intent == IntentType.forecast:
+        return forecast_spending(parsed_intent, db, user_id)
+
+    if parsed_intent.intent == IntentType.detect_anomalies:
+        return detect_anomalies(parsed_intent, db, user_id)
+
+    if parsed_intent.intent == IntentType.budget_suggestions:
+        return budget_suggestions(parsed_intent, db, user_id)
 
     # faillback response for unhandled intents
     return AIResponse(

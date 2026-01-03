@@ -8,6 +8,9 @@ Intent_KEYWORDS: Dict[IntentType, List[str]] = {
     IntentType.spending_trend: ["spending trend", "spending over time", "how has my spending changed"],
     IntentType.highest_spend_category: ["highest spend category", "top spending category", "where do i spend the most"],
     IntentType.compare_months: ["compare months", "month comparison", "spending comparison"],
+    IntentType.forecast: ["forecast", "predict", "spending forecast"],
+    IntentType.detect_anomalies: ["detect anomalies", "unusual spending", "anomaly detection"],
+    IntentType.budget_suggestions: ["budget suggestions", "spending advice", "budget tips"],
 }
 
 # Mapping of QueryType to trigger keywords/phrases
@@ -19,7 +22,7 @@ Query_KEYWORDS: Dict[QueryType, List[str]] = {
 
 def identify_intent(query: str) -> IntentType:
     "Identify the intent type from the user's query."
-    normalized_query = query.lower()
+    query = query.lower()
     for intent, keywords in Intent_KEYWORDS.items():
         if any(keyword in normalized_query for keyword in keywords):
             return intent
@@ -27,7 +30,7 @@ def identify_intent(query: str) -> IntentType:
 
 def identify_query_type(query: str) -> QueryType:
     "Identify the query type from the user's query."
-    normalized_query = query.lower()
+    query = query.lower()
     for qtype, keywords in Query_KEYWORDS.items():
         if any(keyword in normalized_query for keyword in keywords):
             return qtype

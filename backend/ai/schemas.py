@@ -48,6 +48,8 @@ class IntentType(str, Enum):
     highest_spend_category = "highest_spend_category"
     compare_months = "compare_months"
     forecast = "forecast"
+    detect_anomalies = "detect_anomalies"
+    budget_suggestions = "budget_suggestions"
 
 class QueryType(str, Enum):
     summary = "summary"

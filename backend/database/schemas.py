@@ -63,6 +63,9 @@ class ExpenseSummaryResponse(BaseModel):
     user_id: int
     month: int
     year: int
+    day: Optional[int] = None
+    week: Optional[int] = None
+    quarter: Optional[int] = None
     total_expense: float
     by_category: Dict[str, float]  # e.g., {"Food": 120.5, "Transport": 50}
     total_days: int
