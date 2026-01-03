@@ -67,18 +67,25 @@ def _extract_time(query: str) -> Optional[TimeRange]:
 
     month_match = re.search(r'january|february|march|april|may|june|july|august|september|october|november|december', query)
     year_match = re.search(r'\b(20\d{2})\b', query)
+    week_match = re.search(r'week\s*(\d{1,2})', query)
+    day_match = re.search(r'\b(\d{1,2})\b', query)
 
     time_range = TimeRange()
-
     if month_match:
         month_str = month_match.group(0)
         month_num = datetime.strptime(month_str, '%B').month
-        time_range.month = month_num
+        time_range.month = datetime.strptime(month_match.group(0), '%B').month
 
     if year_match:
         time_range.year = int(year_match.group(1))
 
-    return time_range if (time_range.month or time_range.year) else None
+    if week_match:
+        time_range.week = int(week_match.group(1))
+
+    if day_match and not month_match:
+        time_range.day = int(day_match.group(1))
+
+    return time_range if any([time_range.day, time_range.week, time_range.month, time_range.year]) else None
 def _extract_category(query: str) -> Optional[str]:
     "Extract category information from the query."
 
