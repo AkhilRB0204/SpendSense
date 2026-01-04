@@ -60,7 +60,6 @@ class ExpenseCreate(BaseModel):
 
 
 
-
 class ExpenseResponse(BaseModel):
     expense_id: int
     user_id: int
