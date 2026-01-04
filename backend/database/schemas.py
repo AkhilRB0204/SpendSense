@@ -45,10 +45,13 @@ class ExpenseCreate(BaseModel):
     description: str
     created_at: Optional[datetime] = None
 
+
     @validator("created_at", pre=True, always=True)
     def parse_created_at(cls, v):
         if v is None:
             return datetime.utcnow()
+        if isinstance(v, datetime):
+            return v
         try:
             # Parse MM/DD/YYYY format
             return datetime.strptime(v, "%m/%d/%Y")
