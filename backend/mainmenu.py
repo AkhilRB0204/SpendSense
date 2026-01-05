@@ -1,13 +1,12 @@
-import re
-from fastapi import FastAPI, HTTPException, Depends, Query, Body
+from fastapi import FastAPI, HTTPException, Depends, Query, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from database import models, database, schemas, crud
-from database.database import engine, SessionLocal
 from sqlalchemy import func
 from datetime import datetime
+
 from auth import hash_password, validate_password, verify_password, create_access_token, validate_email
-from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import EmailStr, ValidationError
+from database import models, database, schemas, crud
+from database.database import engine, SessionLocal
 
 from ai.processor import process_ai_query
 from ai.intents import parse_intent_from_query

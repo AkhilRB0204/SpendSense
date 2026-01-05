@@ -96,8 +96,7 @@ def _extract_category(query: str) -> Optional[str]:
     return None
 
 def _infer_query_type(query: str) -> QueryType:
-    "Determine if the query is specific or general."
-
+    "Infer the query type based on keywords."
     specific_keywords = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', '20']
     if any(keyword in query for keyword in specific_keywords):
         return QueryType.specific

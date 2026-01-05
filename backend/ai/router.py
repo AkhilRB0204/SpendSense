@@ -27,13 +27,13 @@ def ai_query_endpoint(
 
     
 # parse and process intent
-parsed_intent = parse_intent(request.query)
-result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user.user_id)
-return AIResponse(
-    response=result("response"),
-    data=result.get("data"),
-    confidence=result.get("confidence"),
-    suggestions=result.get("suggestions"),
-    next_action=result.get("next_action"),
-    execution_status="success"
-)
+    parsed_intent = parse_intent(request.query)
+    result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user.user_id)
+    return AIResponse(
+        response=result("response"),
+        data=result.get("data"),
+        confidence=result.get("confidence"),
+        suggestions=result.get("suggestions"),
+        next_action=result.get("next_action"),
+        execution_status="success"
+    )
