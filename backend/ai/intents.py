@@ -2,20 +2,20 @@ from typing import List, Dict
 from .schemas import IntentType, ParsedIntent, QueryType, TimeRange
 
 # Mapping of IntentType to trigger keywords/phrases
-Intent_KEYWORDS: Dict[IntentType, List[str]] = {
-    IntentType.monthly_total: ["total spend", "monthly total", "how much did i spend"],
+INTENT_KEYWORDS: Dict[IntentType, list[str]] = {
+    IntentType.monthly_total: ["total spend", "monthly total", "how much did i spend", "total spending"],
     IntentType.category_breakdown: ["category breakdown", "spending by category", "how is my spending divided"],
-    IntentType.spending_trend: ["spending trend", "spending over time", "how has my spending changed"],
+    IntentType.spending_trend: ["spending trend", "spending over time", "how has my spending changed", "pattern"],
     IntentType.highest_spend_category: ["highest spend category", "top spending category", "where do i spend the most"],
     IntentType.compare_months: ["compare months", "month comparison", "spending comparison"],
-    IntentType.forecast: ["forecast", "predict", "spending forecast"],
+    IntentType.forecast_spending: ["forecast", "predict", "spending forecast"],
     IntentType.detect_anomalies: ["detect anomalies", "unusual spending", "anomaly detection"],
     IntentType.budget_suggestions: ["budget suggestions", "spending advice", "budget tips"],
     IntentType.highest_expense: ["highest expense", "biggest expense", "largest spending"],
 }
 
 # Mapping of QueryType to trigger keywords/phrases
-Query_KEYWORDS: Dict[QueryType, List[str]] = {
+QUERY_KEYWORDS: Dict[QueryType, List[str]] = {
     QueryType.summary: ["summary", "overview", "report"],
     QueryType.advice: ["advice", "tips", "suggestions"],
     QueryType.forecast: ["forecast", "predict", "projection"],
