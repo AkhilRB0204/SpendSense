@@ -45,6 +45,7 @@ def _normalize_query(query: str) -> str:
 
 def _detect_intent(query: str) -> IntentType:
     "Determine the user's intent based on keywords in the query."
+    
     if "total" in query or "spend" in query:
         return IntentType.monthly_total
     elif "breakdown" in query or "category" in query:

@@ -52,6 +52,7 @@ class IntentType(str, Enum):
     detect_anomalies = "detect_anomalies"
     budget_suggestions = "budget_suggestions"
     highest_expense = "highest_expense"
+    advice = "advice"
 
 class QueryType(str, Enum):
     summary = "summary"

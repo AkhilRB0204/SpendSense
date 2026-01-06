@@ -15,6 +15,11 @@ from .schemas import (
 # Main entry point to process AI queries
 def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Process the AI query based on the parsed intent and return an appropriate response."""
+    if parsed_intent.intent == IntentType.advice:
+        return AIResponse(
+            response="You could reduce expenses by setting category limits and reviewing recurring charges.",
+            execution_status="success"
+        )
     
     if parsed_intent.intent == IntentType.monthly_total:
         return monthly_total(parsed_intent, db, user_id)

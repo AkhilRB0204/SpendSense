@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Any, Optional
 from .schemas import IntentType, ParsedIntent, QueryType, TimeRange
 
 # Mapping of IntentType to trigger keywords/phrases

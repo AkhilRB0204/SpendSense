@@ -11,6 +11,26 @@ from database.database import engine, SessionLocal
 from ai.processor import process_ai_query
 from ai.intents import parse_intent_from_query
 from ai.schemas import AIRequest, AIResponse, ParsedIntent, TimeRange, IntentType, QueryType
+from fastapi.middleware.cors import CORSMiddleware
+
+# Define the FastAPI app first
+app = FastAPI(title="SpendSense AI")
+
+# CORS config
+origins = [
+    "http://localhost:5173",  #  Vite dev server
+    "http://127.0.0.1:5173",
+    "*",  # optional for testing
+]
+
+# Allow React frontend (Vite default: http://localhost:5173) to talk to FastAPI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
