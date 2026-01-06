@@ -1,27 +1,32 @@
-from typing import Any, Dict
+import re
+from typing import Any, Dict, Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import models, crud
 from datetime import datetime, timedelta
+from statistics import mean, stdev
+
+from database import models, crud
 from .schemas import (
     AIResponse,
     IntentType,
     ParsedIntent,
+    TimeRange
 )
-
-def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse: 
+# Main entry point to process AI queries
+def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Process the AI query based on the parsed intent and return an appropriate response."""
+    
     if parsed_intent.intent == IntentType.monthly_total:
         return monthly_total(parsed_intent, db, user_id)
     
     if parsed_intent.intent == IntentType.category_breakdown:
-        return get_category_breakdown(parsed_intent, db, user_id)
+        return category_breakdown(parsed_intent, db, user_id)
     
     if parsed_intent.intent == IntentType.spending_trend:
-        return get_spending_trend(parsed_intent, db, user_id)
+        return spending_trend(parsed_intent, db, user_id)
 
     if parsed_intent.intent == IntentType.highest_spend_category:
-        return get_highest_spend_category(parsed_intent, db, user_id)
+        return highest_spend_category(parsed_intent, db, user_id)
     
     if parsed_intent.intent == IntentType.compare_months:
         return compare_months(parsed_intent, db, user_id)
@@ -38,14 +43,16 @@ def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
     if parsed_intent.intent == IntentType.highest_expense:
         return highest_expense(parsed_intent, db, user_id)
 
-    # faillback response for unhandled intents
+    # fallback response for unhandled intents
     return AIResponse(
         response="I couldn’t fully understand that request yet.",
         execution_status="failed"
     )
 
+
+# Helper: monthly total
 def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int) -> float:
-    """Helper to fetch total spending for a given month/year."""
+    """Fetch total spending for a given month and year."""
     return (
         db.query(func.sum(models.Expense.amount))
         .filter(
@@ -62,7 +69,7 @@ def monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIR
     """Calculate the total spending for a given month and year."""
     query = db.query(func.sum(models.Expense.amount)).filter(
         models.Expense.user_id == user_id,
-        models.Expense.deleted_at.is_(None)  # fixed deleted_expense -> deleted_at
+        models.Expense.deleted_at.is_(None)
     )
     
     if parsed_intent.time:
@@ -70,15 +77,14 @@ def monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIR
             query = query.filter(func.extract('month', models.Expense.date) == parsed_intent.time.month)
         if parsed_intent.time.year:
             query = query.filter(func.extract('year', models.Expense.date) == parsed_intent.time.year)
+        if parsed_intent.time.day:
+            query = query.filter(func.extract('day', models.Expense.date) == parsed_intent.time.day)
+
     
     total_spending = query.scalar() or 0.0
 
     if parsed_intent.time and parsed_intent.time.month and parsed_intent.time.year:
-        response_text = (
-            f"Your total spending for "
-            f"{parsed_intent.time.month}/{parsed_intent.time.year} "
-            f"is ${total_spending:.2f}."
-        )
+        response_text = f"Your total spending for {parsed_intent.time.month}/{parsed_intent.time.year} is ${total_spending:.2f}."
     else:
         response_text = f"Your total recorded spending is ${total_spending:.2f}."
 
@@ -88,10 +94,13 @@ def monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIR
         execution_status="success"
     )
 
+
+# Category breakdown
 def category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
-    #Provide a breakdown of spending by category for a given month and year
+    """Provide a breakdown of spending by category for a given month and year."""
     month = parsed_intent.time.month if parsed_intent.time else None
     year = parsed_intent.time.year if parsed_intent.time else None
+
     query = db.query(models.Category.name, func.sum(models.Expense.amount))\
         .join(models.Expense, models.Expense.category_id == models.Category.id)\
         .filter(models.Expense.user_id == user_id)\
@@ -108,28 +117,31 @@ def category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -
     breakdown = {name: float(amount) for name, amount in results}
 
     return AIResponse(
-        response=f"Here's your category breakdown.",
+        response="Here's your category breakdown.",
         data={"by_category": breakdown},
         execution_status="success"
     )
 
+
+# Highest spend category
 def highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    """Identify the category with the highest spending for a given month and year."""
     month = parsed_intent.time.month if parsed_intent.time else None
     year = parsed_intent.time.year if parsed_intent.time else None
-    """Identify the category with the highest spending for a given month and year."""
-    query = query = db.query(models.Category.name, func.sum(models.Expense.amount).label("total_amount"))\
-        .join(models.Expense, models.Expense.category_id == models.Category.id)\
-        .filter(models.Expense.user_id == user_id, models.Expense.deleted_at.is_(None))
+
+    query = db.query(
+        models.Category.name,
+        func.sum(models.Expense.amount).label("total_amount")
+    ).join(models.Expense, models.Expense.category_id == models.Category.id)\
+     .filter(models.Expense.user_id == user_id, models.Expense.deleted_at.is_(None))
 
     if month:
         query = query.filter(func.extract('month', models.Expense.created_at) == month)
     if year:
         query = query.filter(func.extract('year', models.Expense.created_at) == year)
 
-    # Group by category and order descending by total
     result = query.group_by(models.Category.name).order_by(func.sum(models.Expense.amount).desc()).first()
 
-    # No expenses found
     if not result:
         return AIResponse(
             response="No expenses found for the specified time range.",
@@ -143,6 +155,8 @@ def highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: in
         execution_status="success"
     )
 
+
+# Highest expense
 def highest_expense(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Identify the single highest expense for a given month and year."""
     month = parsed_intent.time.month if parsed_intent.time else None
@@ -158,25 +172,27 @@ def highest_expense(parsed_intent: ParsedIntent, db: Session, user_id: int) -> A
     if year:
         query = query.filter(func.extract('year', models.Expense.created_at) == year)
 
-    highest_expense = query.order_by(models.Expense.amount.desc()).first()
+    highest_exp = query.order_by(models.Expense.amount.desc()).first()
 
-    if not highest_expense:
+    if not highest_exp:
         return AIResponse(
             response="No expenses found for the specified time range.",
             execution_status="failed"
         )
 
     return AIResponse(
-        response=f"Your highest expense is ${highest_expense.amount:.2f} for '{highest_expense.description}'.",
+        response=f"Your highest expense is ${highest_exp.amount:.2f} for '{highest_exp.description}'.",
         data={
-            "expense_id": highest_expense.expense_id,
-            "amount": float(highest_expense.amount),
-            "description": highest_expense.description,
-            "date": highest_expense.created_at.isoformat()
+            "expense_id": highest_exp.expense_id,
+            "amount": float(highest_exp.amount),
+            "description": highest_exp.description,
+            "date": highest_exp.created_at.isoformat()
         },
         execution_status="success"
     )
 
+
+# Compare months
 def compare_months(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Compare spending between two specified months."""
     filters = parsed_intent.filters or {}
@@ -188,7 +204,6 @@ def compare_months(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
             response="Please provide both months and years to compare.",
             execution_status="failed"
         )
-    
 
     def total_for_month(m, y):
         return (
@@ -201,17 +216,24 @@ def compare_months(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
             )
             .scalar() or 0.0
         )
-    t1, t2 = total_for_month(month1, year1), total_for_month(month2, year2)
+
+    t1 = total_for_month(month1, year1)
+    t2 = total_for_month(month2, year2)
+
     return AIResponse(
         response=f"Total spending for {month1}/{year1} is ${t1:.2f}, and for {month2}/{year2} is ${t2:.2f}.",
-        data={"month_total": t1, "month2_total": t2},
+        data={"month1_total": t1, "month2_total": t2},
         execution_status="success"
-)
+    )
+
+
+# Spending trend
 def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Analyze spending trend over the past N months."""
     n_months = parsed_intent.filters.get("n_months", 6) if parsed_intent.filters else 6
     end_date = datetime.now()
     start_date = end_date.replace(day=1)
+
     for _ in range(n_months):
         start_date = (start_date.replace(day=1) - timedelta(days=1)).replace(day=1)
 
@@ -234,11 +256,7 @@ def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
 
     results = query.all()
     trend = [
-        {
-            "year": int(year),
-            "month": int(month),
-            "total_amount": float(total_amount)
-        }
+        {"year": int(year), "month": int(month), "total_amount": float(total_amount)}
         for year, month, total_amount in results
     ]
 
@@ -247,9 +265,11 @@ def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
         data={"trend": trend},
         execution_status="success"
     )
+
+
+# Forecast spending
 def forecast_spending(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
-    """Forecast future spending based on historical data."""
-    # Simple forecasting logic (e.g., average of past 6 months)
+    """Forecast future spending based on historical data (average of past N months)."""
     n_months = parsed_intent.filters.get("n_months", 6) if parsed_intent.filters else 6
 
     end_date = datetime.now()
@@ -258,27 +278,32 @@ def forecast_spending(parsed_intent: ParsedIntent, db: Session, user_id: int) ->
         start_date = (start_date - timedelta(days=1)).replace(day=1)
 
     total_spent = (
-        db.query(func.sum(models.Expense.amount).label('total_amount')
-        ).filter(
+        db.query(func.sum(models.Expense.amount))
+        .filter(
             models.Expense.user_id == user_id,
             models.Expense.deleted_at.is_(None),
             models.Expense.created_at >= start_date,
             models.Expense.created_at < end_date
+        )
+        .scalar() or 0.0
     )
-    .scalar() or 0.0 
-    )
+
     average_monthly_spending = total_spent / n_months if n_months > 0 else 0.0
 
     return AIResponse(
         response=f"Based on your past {n_months} months, your forecasted monthly spending is approximately ${average_monthly_spending:.2f}.",
-        data={"forecasted_monthly_spending": round(average_monthly_spending, 2), "months_analyzed": n_months}, execution_status="success")
-    
-    def detect_anomalies(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
-        """Detect spending anomalies in the user's expenses."""
-        expenses = db.query(models.Expense).filter(
-            models.Expense.user_id == user_id,
-            models.Expense.deleted_at.is_(None)
-        ).all()
+        data={"forecasted_monthly_spending": round(average_monthly_spending, 2), "months_analyzed": n_months},
+        execution_status="success"
+    )
+
+
+# Detect anomalies
+def detect_anomalies(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    """Detect spending anomalies in the user's expenses."""
+    expenses = db.query(models.Expense).filter(
+        models.Expense.user_id == user_id,
+        models.Expense.deleted_at.is_(None)
+    ).all()
 
     if not expenses:
         return AIResponse(
@@ -286,22 +311,20 @@ def forecast_spending(parsed_intent: ParsedIntent, db: Session, user_id: int) ->
             execution_status="failed"
         )
 
-    # Simple anomaly: >2 std deviations from category average
-    from statistics import mean, stdev
+    # Simple anomaly: >2 standard deviations from category average
     category_totals = {}
     for exp in expenses:
         category_totals.setdefault(exp.category_id, []).append(exp.amount)
-        
-    # Identify anomalies
+
     anomalies = []
     for category_id, amounts in category_totals.items():
-        if len(amounts) < 2: 
+        if len(amounts) < 2:
             continue
-        avg = mean(amounts)
-        sd = stdev(amounts)
+        avg_val = mean(amounts)
+        sd_val = stdev(amounts)
         for amt in amounts:
-            if abs(amt - avg) > 2 * sd:
-                anomalies.append({"category_id": category_id, "amount": amt, "avg": avg})
+            if abs(amt - avg_val) > 2 * sd_val:
+                anomalies.append({"category_id": category_id, "amount": amt, "avg": avg_val})
 
     return AIResponse(
         response=f"Detected {len(anomalies)} unusual transactions.",
@@ -309,19 +332,21 @@ def forecast_spending(parsed_intent: ParsedIntent, db: Session, user_id: int) ->
         execution_status="success"
     )
 
-    # could be used for smart categorization of expenses
-    def smart_categorize(expense_description: str) -> str:
-        categories = ["food", "entertainment", "transportation", "utilities", "health", "shopping"]
-        expense_description = expense_description.lower()
-        for cat in categories:
-            if cat in expense_description:
-                return cat
-        return "other"
 
+# Smart categorize
+def smart_categorize(expense_description: str) -> str:
+    """Basic keyword-based categorization."""
+    categories = ["food", "entertainment", "transportation", "utilities", "health", "shopping"]
+    expense_description = expense_description.lower()
+    for cat in categories:
+        if cat in expense_description:
+            return cat
+    return "other"
+
+
+# Budget suggestions
 def budget_suggestions(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Generate dynamic budget suggestions based on historical spending trends."""
-    from statistics import mean
-
     # Fetch last 6 months of spending by category
     expenses = db.query(
         models.Category.name,
@@ -329,10 +354,8 @@ def budget_suggestions(parsed_intent: ParsedIntent, db: Session, user_id: int) -
         func.extract('month', models.Expense.created_at).label('month'),
         func.extract('year', models.Expense.created_at).label('year')
     ).join(models.Expense, models.Expense.category_id == models.Category.id)\
-     .filter(
-        models.Expense.user_id == user_id,
-        models.Expense.deleted_at.is_(None)
-     ).group_by('month', 'year', models.Category.name)\
+     .filter(models.Expense.user_id == user_id, models.Expense.deleted_at.is_(None))\
+     .group_by('month', 'year', models.Category.name)\
      .order_by('year', 'month').all()
 
     if not expenses:
@@ -348,11 +371,10 @@ def budget_suggestions(parsed_intent: ParsedIntent, db: Session, user_id: int) -
 
     # Generate suggestions: if last month exceeds 20% of category average
     suggestions = []
-    last_month = max((y, m) for _, _, m, y in expenses)
     for cat, totals in category_totals.items():
         avg = mean(totals[:-1]) if len(totals) > 1 else totals[0]
         last = totals[-1]
-        if last > 1.2 * avg:  # more than 20% above average
+        if last > 1.2 * avg:
             suggestions.append({
                 "category": cat,
                 "last_month": last,

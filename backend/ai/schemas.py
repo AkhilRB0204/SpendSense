@@ -8,10 +8,10 @@ from enum import Enum
 
 # AI Request Schema
 class AIRequest(BaseModel):
-    user_id: int # ID of the user making the AI request
-    query: str # Natural language query
-    context: Optional[List[str]] = None # conversation history
-    filters: Optional[Dict[str, Any]] = None # Additional context for the AI
+    user_id: int  # ID of the user making the AI request
+    query: str  # Natural language query
+    context: Optional[List[str]] = None  # Conversation history
+    filters: Optional[Dict[str, Any]] = None  # Additional context for the AI
     top_n: Optional[int] = Field(1, ge=1, le=10)  # Number of suggestions/responses
 
     @field_validator("query")
@@ -33,6 +33,7 @@ class AIResponse(BaseModel):
 
 # Time range for intents
 class TimeRange(BaseModel):
+    day: Optional[int] = Field(None, ge=1, le=31)
     month: Optional[int] = Field(None, ge=1, le=12)
     year: Optional[int] = Field(None, ge=2000, le=2100)
     week: Optional[int] = Field(None, ge=1, le=53)
@@ -69,5 +70,5 @@ class ParsedIntent(BaseModel):
     @field_validator("category")
     @classmethod
     def normalize_category(cls, v: Optional[str]):
+        """Normalize category names to lowercase and remove extra whitespace."""
         return v.strip().lower() if v else v
-

@@ -20,7 +20,9 @@ useful pieces like intent, time, and category.
 CATEGORIES = ['food', 'entertainment', 'utilities', 'transportation', 'health', 'shopping']
 
 def parse_intent(query: str) -> ParsedIntent:
-    "Parse the user's query and return a structured ParsedIntent object."
+    """
+    Parse the user's query and return a structured ParsedIntent object.
+    """
     normalized_query = _normalize_query(query)
     intent = _detect_intent(normalized_query)
     time_range = _extract_time(normalized_query)
@@ -31,9 +33,10 @@ def parse_intent(query: str) -> ParsedIntent:
         time=time_range,
         category=category,
         raw_query=query,
-        query_type=identify_query_type(normalized_query)
+        query_type=identify_query_type(normalized_query)  # Uses intents.py mapping
     )
 
+# Internal helper
 def _normalize_query(query: str) -> str:
     "Normalize the query by lowercasing and removing punctuation."
     query = query.lower().strip()
@@ -42,7 +45,6 @@ def _normalize_query(query: str) -> str:
 
 def _detect_intent(query: str) -> IntentType:
     "Determine the user's intent based on keywords in the query."
-
     if "total" in query or "spend" in query:
         return IntentType.monthly_total
     elif "breakdown" in query or "category" in query:
@@ -59,6 +61,8 @@ def _detect_intent(query: str) -> IntentType:
         return IntentType.detect_anomalies
     elif "budget" in query or "suggestion" in query:
         return IntentType.budget_suggestions
+    elif "expense" in query or "biggest" in query or "largest" in query:
+        return IntentType.highest_expense
     else:
         return IntentType.monthly_total  # Default intent
 
