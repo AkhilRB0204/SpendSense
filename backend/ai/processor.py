@@ -358,7 +358,7 @@ def budget_suggestions(parsed_intent: ParsedIntent, db: Session, user_id: int) -
         func.sum(models.Expense.amount).label('total_amount'),
         func.extract('month', models.Expense.created_at).label('month'),
         func.extract('year', models.Expense.created_at).label('year')
-    ).join(models.Expense, models.Expense.category_id == models.Category.id)\
+    ).join(models.Expense, models.Expense.category_id == models.Category.category.id)\
      .filter(models.Expense.user_id == user_id, models.Expense.deleted_at.is_(None))\
      .group_by('month', 'year', models.Category.name)\
      .order_by('year', 'month').all()
