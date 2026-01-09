@@ -95,3 +95,21 @@ class ExpenseSummaryResponse(BaseModel):
 class CategoryExpenseSummary(BaseModel):
     category_name: str
     total: float
+
+# 
+class ChatMessageCreate(BaseModel):
+    # Used when creating a new chat message
+    user_id: int
+    sender: str
+    message: str
+
+class ChatMessageResponse(BaseModel):
+    # Used when returning messages to frontend
+    id: int
+    user_id: int
+    sender: str
+    message: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

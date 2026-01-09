@@ -207,3 +207,24 @@ def monthly_summary(
 
     # Return summary with proper schema
     return schemas.ExpenseSummaryResponse(user_id=user_id, month=month, year=year, **summary)
+
+#Save a chat message
+@app.post("/users/{user_id}/chat", response_model=schemas.ChatMessageResponse)
+def save_chat_message(chat: schemas.ChatMessageCreate, db: Session = Depends(get_db)):
+    db_chat = models.ChatMessage(
+        user_id=chat.user_id,
+        sender=chat.sender,
+        message=chat.message
+    )
+    db.add(db_chat)
+    db.commit()
+    db.refresh(db_chat)
+    return db_chat
+
+# Get chat history for a user
+@app.get("/users/{user_id}/chat", response_model=list[schemas.ChatMessageResponse])
+def get_chat_history(user_id: int, db: Session = Depends(get_db)):
+    return db.query(models.ChatMessage)\
+             .filter(models.ChatMessage.user_id == user_id)\
+             .order_by(models.ChatMessage.created_at)\
+             .all()

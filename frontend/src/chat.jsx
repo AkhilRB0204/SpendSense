@@ -1,5 +1,5 @@
 import React, { useState } from "react"; 
-import { queryAI } from "./services/api";
+import "./chat.css";
 
 function Chat({ messages, onSend }) {
   const [input, setInput] = useState("");
@@ -20,7 +20,7 @@ function Chat({ messages, onSend }) {
           </div>
         ))}
       </div>
-      <form onSubmit={handleSubmit}>
+      <form className="chat-input-form" onSubmit={handleSubmit}>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
