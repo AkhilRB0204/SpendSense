@@ -1,59 +1,35 @@
-import { useState } from "react"; 
+import React, { useState } from "react"; 
 import { queryAI } from "./services/api";
 
-export default function Chat() {
-    const [messages, setMessages] = useState([]);
-    const [input, setInput] = useState("");
+function Chat({ messages, onSend }) {
+  const [input, setInput] = useState("");
 
-    const handleSend = async () => {
-        if (!input.trim()) return;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    onSend(input);
+    setInput("");
+  };
 
-        const newMessage = { sender: "user", text: input };
-        setMessages([...messages, newMessage]);
-
-        try {
-            const res = await queryAI(currentUser.user_id, input);
-            const aiMessage = {
-                sender: "ai",
-                text: res.response || "Sorry, I didn't understand that."
-                };
-                setMessages(prev => [...prev, aiMessage]);
-                } catch (err) {
-                    setMessages(prev => [
-                        ...prev,
-                        { sender: "ai", text: "Error connecting to AI service." }
-                    ]);
-                    }
-         setInput("");
-    }; 
-
-    const handleKeyPress = (e) => {
-        if (e.key === "Enter") handleSend();
-    };
-
-    return (
+  return (
     <div className="chat-container">
       <div className="chat-messages">
-        {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={`chat-message ${msg.sender === "user" ? "user" : "ai"}`}
-          >
-            {msg.text}
+        {messages.map((m, i) => (
+          <div key={i} className={`chat-message ${m.sender.toLowerCase()}`}>
+            <strong>{m.sender}:</strong> {m.message}
           </div>
         ))}
       </div>
-      <div className="chat-input">
+      <form onSubmit={handleSubmit}>
         <input
-          type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder="Type your message..."
+          placeholder="Type a message..."
         />
-        <button onClick={handleSend}>Send</button>
-      </div>
+        <button type="submit">Send</button>
+      </form>
     </div>
   );
-
 }
+
+export default Chat;

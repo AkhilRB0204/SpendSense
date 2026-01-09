@@ -1,19 +1,12 @@
 // App.jsx
-import React, { useEffect, useState } from "react";
-import { fetchMonthlySummary, queryAI } from "./services/api";
-import Chat from "./chat";
+import React, { useState } from "react";
+import Dashboard from "./Dashboard";
 import { login } from "./services/auth";
 
 function App() {
   const [userId, setUserId] = useState(null); // dynamic user
-  const [currentUser, setCurrentUser] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const [aiResponse, setAiResponse] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  const month = new Date().getMonth() + 1;
-  const year = new Date().getFullYear();
 
   const handleLogin = async () => {
     try {
@@ -35,21 +28,9 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (!userId) return;
-
-    fetchMonthlySummary(userId, month, year)
-      .then(data => setSummary(data))
-      .catch(err => console.error(err));
-
-    queryAI(userId, "Show me insights for this month")
-      .then(data => setAiResponse(data?.result || "No insights"))
-      .catch(err => console.error(err));
-  }, [userId]);
-
   if (!userId) {
     return (
-      <div>
+      <div style={{ padding: "20px" }}>
         <h2>Login</h2>
         <input
           placeholder="Email"
@@ -66,35 +47,7 @@ function App() {
       </div>
     );
   }
-
-  return (
-    <div style={{ padding: "20px" }}>
-      <h1>SpendSense Dashboard</h1>
-
-      {/* Optional: show monthly summary */}
-      {summary && (
-        <div>
-          <h2>Monthly Summary</h2>
-          <p>Total Spending: ${summary.total_expense}</p>
-          {Object.entries(summary.by_category).map(([cat, val]) => (
-            <p key={cat}>{cat}: ${val}</p>
-          ))}
-        </div>
-      )}
-
-      {/* AI Insights */}
-      {aiResponse && (
-        <div>
-          <h2>AI Insights</h2>
-          <p>{aiResponse}</p>
-        </div>
-      )}
-
-      {/* Chat Component */}
-      {currentUser && <Chat currentUser={currentUser} />}
-    </div>
-  );
-  
+  return <Dashboard userId={userId} />;
 }
 
 export default App;
