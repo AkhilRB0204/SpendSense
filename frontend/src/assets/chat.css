@@ -1,0 +1,91 @@
+.chat-container {
+    display: flex;
+  flex-direction: column;
+  height: 500px; /* adjust as needed */
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background-color: #f9f9f9;
+  overflow: hidden;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Messages area*/
+.chat-messages {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Individual messages */
+.chat-message {
+  padding: 8px 12px;
+  border-radius: 20px;
+  max-width: 70%;
+  word-wrap: break-word;
+  font-size: 0.95rem;
+}
+
+/*User Messages*/
+.chat-message.user {
+    background-color: #007bff;
+    color: white;
+    align-self: flex-end;
+    border-bottom-right-radius: 0;
+}
+
+/* AI messages */
+.chat-message.ai {
+  background-color: #e5e5ea;
+  color: #333;
+  align-self: flex-start;
+  border-bottom-left-radius: 0;
+}
+
+/* Input area */
+.chat-input-container {
+  display: flex;
+  padding: 10px;
+  border-top: 1px solid #ddd;
+  background-color: #fff;
+}
+
+.chat-input-container input {
+  flex: 1;
+  padding: 10px 15px;
+  border-radius: 25px;
+  border: 1px solid #ccc;
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.chat-input-container button {
+  margin-left: 10px;
+  padding: 10px 20px;
+  border-radius: 25px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.chat-input-container button:hover {
+  background-color: #0056b3;
+}
+
+/* Scrollbar styling for messages */
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 3px;
+}

@@ -1,9 +1,12 @@
 // App.jsx
 import React, { useEffect, useState } from "react";
 import { fetchMonthlySummary, queryAI } from "./services/api";
+import Chat from "./chat";
+import { login } from "./services/auth";
 
 function App() {
   const [userId, setUserId] = useState(null); // dynamic user
+  const [currentUser, setCurrentUser] = useState(null);
   const [summary, setSummary] = useState(null);
   const [aiResponse, setAiResponse] = useState("");
   const [email, setEmail] = useState("");
@@ -26,6 +29,7 @@ function App() {
       const data = await res.json();
       const user = data.users.find(u => u.email === userEmail && !u.deleted_at);
       setUserId(user.user_id);
+      setCurrentUser(user);
     } catch (err) {
       console.error("Login failed", err);
     }
@@ -47,7 +51,11 @@ function App() {
     return (
       <div>
         <h2>Login</h2>
-        <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+        <input
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+        />
         <input
           placeholder="Password"
           type="password"
@@ -62,9 +70,31 @@ function App() {
   return (
     <div style={{ padding: "20px" }}>
       <h1>SpendSense Dashboard</h1>
-      {/* ...charts and AI insights... */}
+
+      {/* Optional: show monthly summary */}
+      {summary && (
+        <div>
+          <h2>Monthly Summary</h2>
+          <p>Total Spending: ${summary.total_expense}</p>
+          {Object.entries(summary.by_category).map(([cat, val]) => (
+            <p key={cat}>{cat}: ${val}</p>
+          ))}
+        </div>
+      )}
+
+      {/* AI Insights */}
+      {aiResponse && (
+        <div>
+          <h2>AI Insights</h2>
+          <p>{aiResponse}</p>
+        </div>
+      )}
+
+      {/* Chat Component */}
+      {currentUser && <Chat currentUser={currentUser} />}
     </div>
   );
+  
 }
 
 export default App;
