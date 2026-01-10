@@ -85,7 +85,7 @@ def create_expense(db: Session, user_id: int, category_id: int, amount: float, d
         category_id=category_id,
         amount=amount,
         description=description,
-        expense_date=expense_date if expense_date else datetime.utcnow(),
+        expense_date=expense_date if expense_date else datetime.utcnow()
         # created_at will be set automatically by default in the model
     )
     db.add(db_expense)
