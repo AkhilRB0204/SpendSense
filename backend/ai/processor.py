@@ -4,14 +4,16 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from statistics import mean, stdev
+from collections import defaultdict
 
-from database import models, crud
+from database import models
 from .schemas import (
     AIResponse,
     IntentType,
     ParsedIntent,
     TimeRange
 )
+
 # Main entry point to process AI queries
 def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Process the AI query based on the parsed intent and return an appropriate response."""

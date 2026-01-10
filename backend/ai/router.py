@@ -17,14 +17,13 @@ router = APIRouter(prefix="/ai", tags=["AI"])
 @router.post("/ai/query", response_model=AIResponse)
 def ai_query_endpoint(
     request: AIRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
-    current_user = get_user_by_id(db, request.user_id)
-
-    # Check if user is deleted
-    if current_user is None or current_user.deleted_user:
+    # Check if user is active or inactive, or if user exits
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    if not user or user.deleted_at:
         raise HTTPException(status_code=404, detail="User not found or inactive")
-
     
 # parse and process intent
     parsed_intent = parse_intent(request.query)

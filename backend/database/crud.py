@@ -78,14 +78,15 @@ def create_category(db: Session, name: str):
 
 #  EXPENSES 
 
-def create_expense(db: Session, user_id: int, category_id: int, amount: float, description: str, created_at: datetime = None):
+def create_expense(db: Session, user_id: int, category_id: int, amount: float, description: str, expense_date: datetime = None):
     # Create a new expense linked to a user and category
     db_expense = models.Expense(
         user_id=user_id,
         category_id=category_id,
         amount=amount,
         description=description,
-        created_at=created_at if created_at else datetime.utcnow()
+        expense_date=expense_date if expense_date else datetime.utcnow(),
+        # created_at will be set automatically by default in the model
     )
     db.add(db_expense)
     db.commit()
@@ -125,6 +126,7 @@ def get_expenses(db: Session):
     # Retrieve all expenses
     return db.query(models.Expense).all()
 
+
 def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int):
     # Compute start and end dates for the month
     start_date = datetime(year, month, 1)
@@ -136,12 +138,13 @@ def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int
     # Total number of days in the month
     total_days = (end_date - start_date).days
 
-    # Calculate total spent by user in the month
+    # Calculate total spent by user in the month 
     total_expense = (
         db.query(func.sum(models.Expense.amount))
         .filter(models.Expense.user_id == user_id)
-        .filter(models.Expense.created_at >= start_date)
-        .filter(models.Expense.created_at < end_date)
+        .filter(models.Expense.deleted_at.is_(None))
+        .filter(models.Expense.expense_date >= start_date)
+        .filter(models.Expense.expense_date < end_date)
         .scalar()
     ) or 0.0
 
@@ -156,8 +159,9 @@ def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int
         )
         .join(models.Expense, models.Expense.category_id == models.Category.category_id)
         .filter(models.Expense.user_id == user_id)
-        .filter(models.Expense.created_at >= start_date)
-        .filter(models.Expense.created_at < end_date)
+        .filter(models.Expense.deleted_at.is_(None))
+        .filter(models.Expense.expense_date >= start_date)
+        .filter(models.Expense.expense_date < end_date)
         .group_by(models.Category.name)
         .all()
     )
