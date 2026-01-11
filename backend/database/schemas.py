@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, condecimal, validator
+from pydantic import BaseModel, EmailStr, validator
 from typing import Dict, List, Optional
 from datetime import datetime, date
 
@@ -111,5 +111,90 @@ class ChatMessageResponse(BaseModel):
     message: str
     created_at: datetime
 
+    class Config:
+        from_attributes = True
+
+class BudgetCreate(BaseModel):
+    user_id: int
+    category_id: Optional[int] = None
+    amount: float # Positive decimal value
+    start_date: Optional[datetime] = None
+    period: str = "monthly"
+    end_date: Optional[datetime] = None
+    alert_threshold: float = 0.8  # Alert at 80%
+
+    @validator("amount")
+    @classmethod
+    def amount_must_be_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Budget amount must be positive")
+        return v
+    
+    @validator("period")
+    @classmethod
+    def period_must_be_valid(cls, v):
+        valid_periods = ["monthly", "weekly", "yearly", "daily"]
+        if v.lower() not in valid_periods:
+            raise ValueError(f"Period must be one of: {', '.join(valid_periods)}")
+        return v.lower()
+    
+    @validator("alert_threshold")
+    @classmethod
+    def threshold_must_be_valid(cls, v):
+        if v < 0 or v > 1:
+            raise ValueError("Alert threshold must be between 0 and 1")
+        return v
+    
+
+class BudgetUpdate(BaseModel):
+    """Schema for updating an existing budget"""
+    amount: Optional[float] = None
+    period: Optional[str] = None
+    end_date: Optional[datetime] = None
+    is_active: Optional[bool] = None
+    alert_threshold: Optional[float] = None
+
+    @validator("amount")
+    @classmethod
+    def amount_must_be_positive(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError("Budget amount must be positive")
+        return v
+    
+
+
+class BudgetResponse(BaseModel):
+    """Schema for budget response"""
+    budget_id: int
+    user_id: int
+    category_id: Optional[int]
+    category_name: Optional[str] = None
+    amount: float
+    period: str
+    start_date: datetime
+    end_date: Optional[datetime]
+    is_active: bool
+    alert_threshold: float
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BudgetStatus(BaseModel):
+    """Schema for budget status with spending info"""
+    budget_id: int
+    category_id: Optional[int]
+    category_name: Optional[str]
+    budget_amount: float
+    spent_amount: float
+    remaining_amount: float
+    percentage_used: float
+    period: str
+    is_over_budget: bool
+    should_alert: bool
+    days_remaining: Optional[int] = None
+    
     class Config:
         from_attributes = True

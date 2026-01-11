@@ -3,8 +3,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
+from typing import List
 
-from auth import hash_password, validate_password, verify_password, create_access_token, validate_email
+import auth  # Import the module, not individual functions yet
 from database import models, database, schemas, crud
 from database.database import engine, SessionLocal
 
@@ -13,17 +14,16 @@ from ai.intents import parse_intent_from_query
 from ai.schemas import AIRequest, AIResponse, ParsedIntent, TimeRange, IntentType, QueryType
 from fastapi.middleware.cors import CORSMiddleware
 
-# Define the FastAPI app first
+# Define the FastAPI app
 app = FastAPI(title="SpendSense AI")
 
 # CORS config
 origins = [
-    "http://localhost:5173",  #  Vite dev server
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "*",  # optional for testing
+    "*",
 ]
 
-# Allow React frontend (Vite default: http://localhost:5173) to talk to FastAPI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -34,9 +34,6 @@ app.add_middleware(
 
 # Create all tables
 models.Base.metadata.create_all(bind=engine)
-
-# Initialize FastAPI app
-app = FastAPI(title="SpendSense AI")
 
 # Dependency: get DB session
 def get_db():
@@ -49,41 +46,33 @@ def get_db():
 # root endpoint
 @app.get("/")
 def read_root():
-    # welcome message
     return {"message": "Welcome to SpendSense AI, your personal AI powered expense tracker!"}
 
 #  USERS 
 @app.post("/users", response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    auth.validate_email(user.email)
+    auth.validate_password(user.password)
 
-    # Validate email and password
-    validate_email(user.email)
-    validate_password(user.password)
-
-    # Check if user already exists
     if crud.get_user_by_email(db, user.email):
         raise HTTPException(status_code=400, detail="User already exists")
 
-    # Create and return new user
     return crud.create_user(db, user.name, user.email, user.password)
 
 
 @app.post("/users/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # Authenticate user
     user = crud.verify_user_credentials(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
-    # Generate and return JWT token
-    access_token = create_access_token(data={"sub": user.email})
+    access_token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
 
 @app.put("/users/{user_id}", response_model=schemas.UserResponse)
-# Update user details
 def update_user_endpoint(user_id: int, user_update: schemas.UserCreate, db: Session = Depends(get_db)):
     updated_user = crud.update_user(db, user_id, user_update.name, user_update.email, user_update.password)
     if not updated_user:
@@ -92,7 +81,6 @@ def update_user_endpoint(user_id: int, user_update: schemas.UserCreate, db: Sess
 
 
 @app.delete("/users/{user_id}", response_model=schemas.UserResponse)
-# delete a user
 def delete_user_endpoint(user_id: int, db: Session = Depends(get_db)):
     deleted_user = crud.soft_delete_user(db, user_id)
     if not deleted_user:
@@ -102,15 +90,12 @@ def delete_user_endpoint(user_id: int, db: Session = Depends(get_db)):
 #  CATEGORIES 
 @app.post("/categories", response_model=schemas.CategoryResponse)
 def create_category_endpoint(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
-    # Check if category already exists
     if crud.get_category_by_name(db, category.name):
         raise HTTPException(status_code=400, detail="Category already exists")
-    # Create and return new category
     return crud.create_category(db, category.name)
 
 @app.put("/categories/{category_id}", response_model=schemas.CategoryResponse)
 def update_category_endpoint(category_id: int, category_update: schemas.CategoryCreate, db: Session = Depends(get_db)):
-    #Update a category
     category = crud.get_category_by_id(db, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -121,7 +106,6 @@ def update_category_endpoint(category_id: int, category_update: schemas.Category
 
 @app.delete("/categories/{category_id}", response_model=schemas.CategoryResponse)
 def delete_category_endpoint(category_id: int, db: Session = Depends(get_db)):
-    #Delete a category
     category = crud.get_category_by_id(db, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -132,18 +116,14 @@ def delete_category_endpoint(category_id: int, db: Session = Depends(get_db)):
 #  EXPENSES 
 @app.post("/expenses", response_model=schemas.ExpenseResponse)
 def create_expense_endpoint(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
-    # Check if user exists
     if not crud.get_user_by_id(db, expense.user_id):
         raise HTTPException(status_code=404, detail="User not found")
-    # Check if category exists
     if not crud.get_category_by_id(db, expense.category_id):
         raise HTTPException(status_code=404, detail="Category not found")
-    # Create and return new expense
-    return crud.create_expense(db, expense.user_id, expense.category_id, expense.amount, expense.description, created_at=expense.created_at)
+    return crud.create_expense(db, expense.user_id, expense.category_id, expense.amount, expense.description, expense_date=expense.created_at)
 
 @app.put("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
 def update_expense_endpoint(expense_id: int, expense_update: schemas.ExpenseCreate, db: Session = Depends(get_db)):
-    # Update an expense
     updated_expense = crud.update_expense(
         db,
         expense_id,
@@ -157,13 +137,162 @@ def update_expense_endpoint(expense_id: int, expense_update: schemas.ExpenseCrea
 
 @app.delete("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
 def delete_expense_endpoint(expense_id: int, db: Session = Depends(get_db)):
-    # Soft delete an expense
     deleted_expense = crud.soft_delete_expense(db, expense_id)
     if not deleted_expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     return deleted_expense
 
-# Debug endpoint to view all data
+# BUDGETS
+@app.post("/budgets", response_model=schemas.BudgetResponse)
+def create_budget(
+    budget: schemas.BudgetCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)  # Use auth.get_current_user
+):
+    """Create a new budget for authenticated user"""
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    if not user or user.deleted_at:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if budget.category_id:
+        category = crud.get_category_by_id(db, budget.category_id)
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+    
+    db_budget = crud.create_budget(
+        db=db,
+        user_id=user.user_id,
+        amount=budget.amount,
+        category_id=budget.category_id,
+        period=budget.period,
+        start_date=budget.start_date,
+        end_date=budget.end_date,
+        alert_threshold=budget.alert_threshold
+    )
+
+    response = schemas.BudgetResponse.from_orm(db_budget)
+    if db_budget.category_id:
+        category = crud.get_category_by_id(db, db_budget.category_id)
+        response.category_name = category.name if category else None
+    else:
+        response.category_name = "Overall Budget"
+    
+    return response
+
+
+@app.get("/budgets", response_model=List[schemas.BudgetResponse])
+def get_budgets(
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Get all budgets for authenticated user"""
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    if not user or user.deleted_at:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    budgets = crud.get_user_budgets(db, user.user_id, active_only=active_only)
+    
+    responses = []
+    for budget in budgets:
+        response = schemas.BudgetResponse.from_orm(budget)
+        if budget.category_id:
+            category = crud.get_category_by_id(db, budget.category_id)
+            response.category_name = category.name if category else None
+        else:
+            response.category_name = "Overall Budget"
+        responses.append(response)
+    
+    return responses
+
+
+@app.get("/budgets/status", response_model=List[schemas.BudgetStatus])
+def get_budget_statuses(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Get spending status for all budgets"""
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    if not user or user.deleted_at:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return crud.get_all_budget_statuses(db, user.user_id)
+
+
+@app.get("/budgets/{budget_id}", response_model=schemas.BudgetResponse)
+def get_budget(
+    budget_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Get specific budget"""
+    budget = crud.get_budget_by_id(db, budget_id)
+    if not budget:
+        raise HTTPException(status_code=404, detail="Budget not found")
+    if budget.user_id != current_user['user_id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    response = schemas.BudgetResponse.from_orm(budget)
+    if budget.category_id:
+        category = crud.get_category_by_id(db, budget.category_id)
+        response.category_name = category.name if category else None
+    else:
+        response.category_name = "Overall Budget"
+    
+    return response
+
+
+@app.put("/budgets/{budget_id}", response_model=schemas.BudgetResponse)
+def update_budget(
+    budget_id: int,
+    budget_update: schemas.BudgetUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Update existing budget"""
+    budget = crud.get_budget_by_id(db, budget_id)
+    if not budget:
+        raise HTTPException(status_code=404, detail="Budget not found")
+    if budget.user_id != current_user['user_id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    updated = crud.update_budget(
+        db=db,
+        budget_id=budget_id,
+        amount=budget_update.amount,
+        period=budget_update.period,
+        end_date=budget_update.end_date,
+        is_active=budget_update.is_active,
+        alert_threshold=budget_update.alert_threshold
+    )
+    
+    response = schemas.BudgetResponse.from_orm(updated)
+    if updated.category_id:
+        category = crud.get_category_by_id(db, updated.category_id)
+        response.category_name = category.name if category else None
+    else:
+        response.category_name = "Overall Budget"
+    
+    return response
+
+
+@app.delete("/budgets/{budget_id}")
+def delete_budget(
+    budget_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Delete budget"""
+    budget = crud.get_budget_by_id(db, budget_id)
+    if not budget:
+        raise HTTPException(status_code=404, detail="Budget not found")
+    if budget.user_id != current_user['user_id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    crud.soft_delete_budget(db, budget_id)
+    return {"message": "Budget deleted successfully"}
+
+# Debug endpoint
 @app.get("/debug")
 def debug(db: Session = Depends(get_db)):
     return {
@@ -172,43 +301,32 @@ def debug(db: Session = Depends(get_db)):
         "expenses": db.query(models.Expense).all()
     }
 
-# Ai query endpoint
+# AI query endpoint
 @app.post("/ai/query", response_model=AIResponse)
 def ai_query(request: AIRequest, db: Session = Depends(get_db)):
-    # Validate user exists
     current_user = crud.get_user_by_id(db, request.user_id)
     if current_user is None or current_user.deleted_at:
         raise HTTPException(status_code=404, detail="User not found or inactive")
 
-    # Parse user query
     parsed_intent = parse_intent_from_query(request.query)
-
-    # Process AI query via processor
     result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user.user_id)
-
     return result 
 
-
-
-#  Monthly Expense Summary
+# Monthly Expense Summary
 @app.get("/users/{user_id}/expenses/summary", response_model=schemas.ExpenseSummaryResponse)
 def monthly_summary(
-        user_id: int,
-        month: int = Query(..., ge=1, le=12),
-        year: int = Query(..., ge=2000, le=2100),
+    user_id: int,
+    month: int = Query(..., ge=1, le=12),
+    year: int = Query(..., ge=2000, le=2100),
     db: Session = Depends(get_db)
 ):
-    # Validate user exists
     if not crud.get_user_by_id(db, user_id):
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Get monthly summary from crud
     summary = crud.get_monthly_expense_summary(db, user_id, month, year)
-
-    # Return summary with proper schema
     return schemas.ExpenseSummaryResponse(user_id=user_id, month=month, year=year, **summary)
 
-#Save a chat message
+# Save a chat message
 @app.post("/users/{user_id}/chat", response_model=schemas.ChatMessageResponse)
 def save_chat_message(chat: schemas.ChatMessageCreate, db: Session = Depends(get_db)):
     db_chat = models.ChatMessage(
@@ -221,7 +339,7 @@ def save_chat_message(chat: schemas.ChatMessageCreate, db: Session = Depends(get
     db.refresh(db_chat)
     return db_chat
 
-# Get chat history for a user
+# Get chat history
 @app.get("/users/{user_id}/chat", response_model=list[schemas.ChatMessageResponse])
 def get_chat_history(user_id: int, db: Session = Depends(get_db)):
     return db.query(models.ChatMessage)\
