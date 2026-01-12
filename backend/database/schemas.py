@@ -145,6 +145,17 @@ class BudgetCreate(BaseModel):
             raise ValueError("Alert threshold must be between 0 and 1")
         return v
     
+    @validator("start_date", "end_date", pre=True, always=True)
+    def parse_dates(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v
+        try:
+            # Parse MM/DD/YYYY format
+            return datetime.strptime(v, "%m/%d/%Y")
+        except ValueError:
+            raise ValueError("Date must be in MM/DD/YYYY format, e.g., 12/15/2025")
 
 class BudgetUpdate(BaseModel):
     """Schema for updating an existing budget"""
