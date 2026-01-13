@@ -178,3 +178,201 @@ def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int
         "end_date": end_date,
         "by_category": category_breakdown
     }
+
+
+
+def create_budget(db: Session, user_id: int, category_id: int = None, amount: float = 0, 
+                  start_date: datetime = None, period: str = "monthly", 
+                  end_date: datetime = None, alert_threshold: float = 0.8):
+    """Create a new budget"""
+    db_budget = models.Budget(
+        user_id=user_id,
+        category_id=category_id,
+        amount=amount,
+        period=period,
+        start_date=start_date if start_date else datetime.utcnow(),
+        end_date=end_date,
+        alert_threshold=alert_threshold,
+        is_active=1
+    )
+    db.add(db_budget)
+    db.commit()
+    db.refresh(db_budget)
+    return db_budget
+
+def get_budget_by_id(db: Session, budget_id: int):
+    """Retrieve a budget by its ID"""
+    return db.query(models.Budget).filter(
+        models.Budget.budget_id == budget_id,
+        models.Budget.deleted_at.is_(None)
+    ).first()
+
+def get_user_budgets(db: Session, user_id: int, active_only: bool = True):
+    """Get all budgets for a user"""
+    query = db.query(models.Budget).filter(
+        models.Budget.user_id == user_id,
+        models.Budget.deleted_at.is_(None)
+    )
+    if active_only:
+        query = query.filter(models.Budget.is_active == 1)
+    return query.all()
+
+def get_budget_by_category(db: Session, user_id: int, category_id: int = None):
+    """Get budget for a specific category (or overall budget if category_id is None)"""
+    return db.query(models.Budget).filter(
+        models.Budget.user_id == user_id,
+        models.Budget.category_id == category_id,
+        models.Budget.is_active == 1,
+        models.Budget.deleted_at.is_(None)
+    ).first()
+
+def update_budget(db: Session, budget_id: int, amount: float = None, 
+                  period: str = None, end_date: datetime = None, 
+                  is_active: int = None, alert_threshold: float = None):
+    """Update an existing budget"""
+    budget = get_budget_by_id(db, budget_id)
+    if not budget:
+        return None
+    
+    if amount is not None:
+        budget.amount = amount
+    if period is not None:
+        budget.period = period
+    if end_date is not None:
+        budget.end_date = end_date
+    if is_active is not None:
+        budget.is_active = is_active
+    if alert_threshold is not None:
+        budget.alert_threshold = alert_threshold
+    
+    budget.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(budget)
+    return budget
+
+def soft_delete_budget(db: Session, budget_id: int):
+    """Soft delete a budget by setting deleted_at timestamp"""
+    budget = get_budget_by_id(db, budget_id)
+    if not budget:
+        return None
+    
+    budget.deleted_at = datetime.utcnow()
+    db.commit()
+    db.refresh(budget)
+    return budget
+
+def deactivate_budget(db: Session, budget_id: int):
+    """Deactivate a budget (set is_active to 0)"""
+    return update_budget(db, budget_id, is_active=0)
+
+def activate_budget(db: Session, budget_id: int):
+    """Activate a budget (set is_active to 1)"""
+    return update_budget(db, budget_id, is_active=1)
+
+def get_budget_period_dates(budget: models.Budget):
+    """Calculate the current period start and end dates for a budget"""
+    now = datetime.utcnow()
+    
+    if budget.period == "daily":
+        start = datetime(now.year, now.month, now.day)
+        end = start.replace(hour=23, minute=59, second=59)
+    elif budget.period == "weekly":
+        # Start from Monday of current week
+        days_since_monday = now.weekday()
+        start = now - datetime.timedelta(days=days_since_monday)
+        start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + datetime.timedelta(days=7)
+    elif budget.period == "monthly":
+        start = datetime(now.year, now.month, 1)
+        if now.month == 12:
+            end = datetime(now.year + 1, 1, 1)
+        else:
+            end = datetime(now.year, now.month + 1, 1)
+    elif budget.period == "yearly":
+        start = datetime(now.year, 1, 1)
+        end = datetime(now.year + 1, 1, 1)
+    else:
+        # Default to monthly
+        start = datetime(now.year, now.month, 1)
+        if now.month == 12:
+            end = datetime(now.year + 1, 1, 1)
+        else:
+            end = datetime(now.year, now.month + 1, 1)
+    
+    # Respect budget start_date if it's later than calculated start
+    if budget.start_date > start:
+        start = budget.start_date
+    
+    # Respect budget end_date if set and earlier than calculated end
+    if budget.end_date and budget.end_date < end:
+        end = budget.end_date
+    
+    return start, end
+
+def get_budget_status(db: Session, budget_id: int):
+    """Get spending status for a specific budget"""
+    budget = get_budget_by_id(db, budget_id)
+    if not budget:
+        return None
+    
+    start_date, end_date = get_budget_period_dates(budget)
+    
+    # Calculate total spent in current period
+    query = db.query(func.sum(models.Expense.amount)).filter(
+        models.Expense.user_id == budget.user_id,
+        models.Expense.deleted_at.is_(None),
+        models.Expense.expense_date >= start_date,
+        models.Expense.expense_date < end_date
+    )
+    
+    # Filter by category if budget is category-specific
+    if budget.category_id:
+        query = query.filter(models.Expense.category_id == budget.category_id)
+    
+    spent_amount = query.scalar() or 0.0
+    
+    remaining_amount = budget.amount - spent_amount
+    percentage_used = (spent_amount / budget.amount * 100) if budget.amount > 0 else 0
+    is_over_budget = spent_amount > budget.amount
+    should_alert = percentage_used >= (budget.alert_threshold * 100)
+    
+    # Calculate days remaining in period
+    now = datetime.utcnow()
+    if now < end_date:
+        days_remaining = (end_date - now).days
+    else:
+        days_remaining = 0
+    
+    # Get category name
+    category_name = None
+    if budget.category_id:
+        category = get_category_by_id(db, budget.category_id)
+        category_name = category.name if category else None
+    else:
+        category_name = "Overall Budget"
+    
+    return {
+        "budget_id": budget.budget_id,
+        "category_id": budget.category_id,
+        "category_name": category_name,
+        "budget_amount": budget.amount,
+        "spent_amount": round(spent_amount, 2),
+        "remaining_amount": round(remaining_amount, 2),
+        "percentage_used": round(percentage_used, 2),
+        "period": budget.period,
+        "is_over_budget": is_over_budget,
+        "should_alert": should_alert,
+        "days_remaining": days_remaining
+    }
+
+def get_all_budget_statuses(db: Session, user_id: int) -> List[Dict]:
+    """Get spending status for all active budgets of a user"""
+    budgets = get_user_budgets(db, user_id, active_only=True)
+    statuses = []
+    
+    for budget in budgets:
+        status = get_budget_status(db, budget.budget_id)
+        if status:
+            statuses.append(status)
+    
+    return statuses

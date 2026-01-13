@@ -157,6 +157,7 @@ class BudgetCreate(BaseModel):
         except ValueError:
             raise ValueError("Date must be in MM/DD/YYYY format, e.g., 12/15/2025")
 
+
 class BudgetUpdate(BaseModel):
     """Schema for updating an existing budget"""
     amount: Optional[float] = None
@@ -170,6 +171,13 @@ class BudgetUpdate(BaseModel):
     def amount_must_be_positive(cls, v):
         if v is not None and v <= 0:
             raise ValueError("Budget amount must be positive")
+        return v
+    
+    @validator("is_active")
+    @classmethod
+    def is_active_must_be_valid(cls, v):
+        if v is not None and v not in [0, 1]:
+            raise ValueError("is_active must be 0 or 1")
         return v
     
 
