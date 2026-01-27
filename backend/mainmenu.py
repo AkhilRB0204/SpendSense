@@ -326,6 +326,20 @@ def monthly_summary(
     summary = crud.get_monthly_expense_summary(db, user_id, month, year)
     return schemas.ExpenseSummaryResponse(user_id=user_id, month=month, year=year, **summary)
 
+# Get current authenticated user's profile
+@app.get("/users/me", response_model=schemas.UserResponse)
+def get_current_user_profile(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Get current authenticated user's profile"""
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    
+    if not user or user.deleted_at:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return user
+
 # Save a chat message
 @app.post("/users/{user_id}/chat", response_model=schemas.ChatMessageResponse)
 def save_chat_message(chat: schemas.ChatMessageCreate, db: Session = Depends(get_db)):
@@ -346,3 +360,47 @@ def get_chat_history(user_id: int, db: Session = Depends(get_db)):
              .filter(models.ChatMessage.user_id == user_id)\
              .order_by(models.ChatMessage.created_at)\
              .all()
+
+# Get all categories
+@app.get("/categories", response_model=List[schemas.CategoryResponse])
+def get_all_categories(db: Session = Depends(get_db)):
+    categories = db.query(models.Category).all()
+    return categories
+
+@app.get("/expenses", response_model=List[schemas.ExpenseResponse])
+def get_user_expenses(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Get all expenses for authenticated user"""
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    if not user or user.deleted_at:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    expenses = db.query(models.Expense)\
+        .filter(models.Expense.user_id == current_user['user_id'])\
+        .filter(models.Expense.deleted_at == None)\
+        .order_by(models.Expense.expense_date.desc())\
+        .all()
+    
+    return expenses
+
+@app.get("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+def get_expense_summary(
+    month: int = Query(..., ge=1, le=12),
+    year: int = Query(..., ge=2000, le=2100),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Get expense summary for authenticated user"""
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    if not user or user.deleted_at:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    summary = crud.get_monthly_expense_summary(db, current_user['user_id'], month, year)
+    return schemas.ExpenseSummaryResponse(
+        user_id=current_user['user_id'], 
+        month=month, 
+        year=year, 
+        **summary
+    )
