@@ -4,6 +4,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
 from typing import List
+import os
+from dotenv import load_dotenv
+
+# Rate limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 
 import auth  # Import the module, not individual functions yet
 from database import models, database, schemas, crud
@@ -16,6 +24,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Define the FastAPI app
 app = FastAPI(title="SpendSense AI")
+
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS config
 origins = [
@@ -385,7 +398,7 @@ def get_user_expenses(
     
     return expenses
 
-@app.get("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+@app.get("/expenses/summary", response_model=schemas.ExpenseSummaryResponse)
 def get_expense_summary(
     month: int = Query(..., ge=1, le=12),
     year: int = Query(..., ge=2000, le=2100),
