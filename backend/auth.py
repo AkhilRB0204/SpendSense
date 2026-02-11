@@ -1,9 +1,13 @@
 import re
+import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def validate_email(email: str):
     """
@@ -39,8 +43,11 @@ pwd_context = CryptContext(
     deprecated="auto"
 )
 
-# JWT config
-SECRET_KEY = "your_secret_key"
+# JWT Config
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY must be set in environment variables! Create a .env file with SECRET_KEY=your-secret-key")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -74,6 +81,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
 # decode access token
 def decode_access_token(token: str) -> dict | None:
+    global SECRET_KEY  # Add this line
     """
     Decode & validate JWT token
     """
@@ -86,7 +94,6 @@ def decode_access_token(token: str) -> dict | None:
         return payload
     except JWTError:
         return None
-
 
 # get current user from token
 def get_current_user(token: str = Depends(oauth2_scheme)):

@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from fastapi import Request
 
 
 import auth  # Import the module, not individual functions yet
@@ -63,7 +64,8 @@ def read_root():
 
 #  USERS 
 @app.post("/users", response_model=schemas.UserResponse)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")  # Rate limit: 3 signups per minute
+def create_user(request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)):
     auth.validate_email(user.email)
     auth.validate_password(user.password)
 
@@ -74,7 +76,8 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 
 @app.post("/users/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")  # Rate limit: 5 login attempts per minute
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = crud.verify_user_credentials(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -316,6 +319,7 @@ def debug(db: Session = Depends(get_db)):
 
 # AI query endpoint
 @app.post("/ai/query", response_model=AIResponse)
+@limiter.limit("20/minute")  # Rate limit AI queries
 def ai_query(request: AIRequest, db: Session = Depends(get_db)):
     current_user = crud.get_user_by_id(db, request.user_id)
     if current_user is None or current_user.deleted_at:
@@ -368,7 +372,9 @@ def save_chat_message(chat: schemas.ChatMessageCreate, db: Session = Depends(get
 
 # Get chat history
 @app.get("/users/{user_id}/chat", response_model=list[schemas.ChatMessageResponse])
-def get_chat_history(user_id: int, db: Session = Depends(get_db)):
+def get_chat_history(user_id: int, db: Session = Depends(get_db), current_user: dict = Depends(auth.get_current_user)):
+    if user_id != current_user['user_id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
     return db.query(models.ChatMessage)\
              .filter(models.ChatMessage.user_id == user_id)\
              .order_by(models.ChatMessage.created_at)\

@@ -1,5 +1,18 @@
-venv/
-__pycache__/
-*.db
+# Environment variables
 .env
-.DS_Store
+.env.local
+
+# Database
+*.db
+*.db-journal
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
