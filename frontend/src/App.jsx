@@ -105,6 +105,20 @@ async function fetchCategories() {
   return await response.json();
 }
 
+async function createCategory(name) {
+  const response = await fetch(`${API_BASE}/categories`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ name })
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to create category');
+  }
+  return await response.json();
+}
+
+
 async function fetchExpenseSummary(month, year) {
   const response = await fetch(
     `${API_BASE}/expenses/summary?month=${month}&year=${year}`,
@@ -181,6 +195,7 @@ function validatePassword(password) {
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
+
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'];
 
@@ -730,17 +745,34 @@ function Expenses({ user }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                >
-                  <option value="">Select category</option>
-                  {categories.map(cat => (
-                    <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={formData.category_id}
+                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    required
+                  >
+                    <option value="">Select category</option>
+                    {categories.map(cat => (
+                      <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const name = prompt('New category name:');
+                      if (!name?.trim()) return;
+                      try {
+                        await createCategory(name.trim());
+                        const updated = await fetchCategories();
+                        setCategories(updated);
+                      } catch (err) { alert(err.message || 'Failed to create category'); }
+                    }}
+                    className="px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium text-sm whitespace-nowrap"
+                  >
+                    + New
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
@@ -956,16 +988,33 @@ function Budgets({ user }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Category (leave empty for overall budget)
                 </label>
-                <select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Overall Budget</option>
-                  {categories.map(cat => (
-                    <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={formData.category_id}
+                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Overall Budget</option>
+                    {categories.map(cat => (
+                      <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const name = prompt('New category name:');
+                      if (!name?.trim()) return;
+                      try {
+                        await createCategory(name.trim());
+                        const updated = await fetchCategories();
+                        setCategories(updated);
+                      } catch (err) { alert(err.message); }
+                    }}
+                    className="px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium text-sm whitespace-nowrap"
+                  >
+                    + New
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Budget Amount ($)</label>
