@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DollarSign, TrendingUp, Calendar, CreditCard, MessageCircle, PlusCircle, Target, Menu, X, LogOut, Send, Trash2 } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 // Helper function to get auth headers
 function getAuthHeaders() {
@@ -900,7 +900,7 @@ function Budgets({ user }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {budgets.map((budget) => {
-          const percentUsed = (budget.spent / budget.limit) * 100;
+          const percentUsed = (budget.spent_amount / budget.budget_amount) * 100;
           const isOverBudget = percentUsed > 100;
           const isNearLimit = percentUsed > (budget.alert_threshold * 100);
 
@@ -929,16 +929,16 @@ function Budgets({ user }) {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Spent</span>
-                  <span className="font-semibold text-gray-900">${budget.spent.toFixed(2)}</span>
+                  <span className="font-semibold text-gray-900">${budget.spent_amount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Limit</span>
-                  <span className="font-semibold text-gray-900">${budget.limit.toFixed(2)}</span>
+                  <span className="font-semibold text-gray-900">${budget.budget_amount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Remaining</span>
-                  <span className={`font-semibold ${budget.remaining < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    ${Math.abs(budget.remaining).toFixed(2)} {budget.remaining < 0 && 'over'}
+                  <span className={`font-semibold ${budget.remaining_amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ${Math.abs(budget.remaining_amount).toFixed(2)} {budget.remaining_amount < 0 && 'over'}
                   </span>
                 </div>
 
