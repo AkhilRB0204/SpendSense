@@ -721,7 +721,7 @@ def generate_personalized_advice(db: Session, user_id: int) -> AIResponse:
 def check_budget_alerts(db: Session, user_id: int) -> AIResponse:
     "Check if user is approaching or exceeding their budgets. Returns alerts and recommendations."
 
-    statuses = db_crud.get_all_budget_statuses
+    statuses = db_crud.get_all_budget_statuses(db, user_id)
 
     if not statuses:
         return AIResponse(
