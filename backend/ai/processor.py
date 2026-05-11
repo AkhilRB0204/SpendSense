@@ -136,14 +136,14 @@ def category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -
     year = parsed_intent.time.year if parsed_intent.time else None
 
     query = db.query(models.Category.name, func.sum(models.Expense.amount))\
-        .join(models.Expense, models.Expense.category_id == models.Category.id)\
+        .join(models.Expense, models.Expense.category_id == models.Category.category_id)\
         .filter(models.Expense.user_id == user_id)\
         .filter(models.Expense.deleted_at.is_(None))
 
     if month:
-        query = query.filter(func.extract('month', models.Expense.created_at) == month)
+        query = query.filter(func.extract('month', models.Expense.expense_date) == month)
     if year:
-        query = query.filter(func.extract('year', models.Expense.created_at) == year)
+        query = query.filter(func.extract('year', models.Expense.expense_date) == year)
 
     query = query.group_by(models.Category.name)
     results = query.all()
@@ -173,13 +173,13 @@ def highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: in
     query = db.query(
         models.Category.name,
         func.sum(models.Expense.amount).label("total_amount")
-    ).join(models.Expense, models.Expense.category_id == models.Category.id)\
+    ).join(models.Expense, models.Expense.category_id == models.Category.category_id)\
      .filter(models.Expense.user_id == user_id, models.Expense.deleted_at.is_(None))
 
     if month:
-        query = query.filter(func.extract('month', models.Expense.created_at) == month)
+        query = query.filter(func.extract('month', models.Expense.expense_date) == month)
     if year:
-        query = query.filter(func.extract('year', models.Expense.created_at) == year)
+        query = query.filter(func.extract('year', models.Expense.expense_date) == year)
 
     result = query.group_by(models.Category.name).order_by(func.sum(models.Expense.amount).desc()).first()
 
@@ -209,9 +209,9 @@ def highest_expense(parsed_intent: ParsedIntent, db: Session, user_id: int) -> A
     )
 
     if month:
-        query = query.filter(func.extract('month', models.Expense.created_at) == month)
+        query = query.filter(func.extract('month', models.Expense.expense_date) == month)
     if year:
-        query = query.filter(func.extract('year', models.Expense.created_at) == year)
+        query = query.filter(func.extract('year', models.Expense.expense_date) == year)
 
     highest_exp = query.order_by(models.Expense.amount.desc()).first()
 
@@ -252,8 +252,8 @@ def compare_months(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
             .filter(
                 models.Expense.user_id == user_id,
                 models.Expense.deleted_at.is_(None),
-                func.extract('month', models.Expense.created_at) == m,
-                func.extract('year', models.Expense.created_at) == y
+                func.extract('month', models.Expense.expense_date) == m,
+                func.extract('year', models.Expense.expense_date) == y
             )
             .scalar() or 0.0
         )
@@ -280,20 +280,20 @@ def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
         start_date = (start_date.replace(day=1) - timedelta(days=1)).replace(day=1)
 
     query = db.query(
-        func.extract('year', models.Expense.created_at).label('year'),
-        func.extract('month', models.Expense.created_at).label('month'),
+        func.extract('year', models.Expense.expense_date).label('year'),
+        func.extract('month', models.Expense.expense_date).label('month'),
         func.sum(models.Expense.amount).label('total_amount')
     ).filter(
         models.Expense.user_id == user_id,
         models.Expense.deleted_at.is_(None),
-        models.Expense.created_at >= start_date,
-        models.Expense.created_at < end_date
+        models.Expense.expense_date >= start_date,
+        models.Expense.expense_date < end_date
     ).group_by(
-        func.extract('year', models.Expense.created_at),
-        func.extract('month', models.Expense.created_at)
+        func.extract('year', models.Expense.expense_date),
+        func.extract('month', models.Expense.expense_date)
     ).order_by(
-        func.extract('year', models.Expense.created_at),
-        func.extract('month', models.Expense.created_at)
+        func.extract('year', models.Expense.expense_date),
+        func.extract('month', models.Expense.expense_date)
     )
 
     results = query.all()
@@ -461,15 +461,15 @@ def detect_anomalies(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
         # Find anomalies
         for transaction in transactions:
             amount = transaction['amount']
-            
+
             if amount > upper_bound and iqr > 0:
                 if avg_amount > 0:
                     deviation_pct = ((amount - avg_amount) / avg_amount * 100)
                 else:
                     deviation_pct = 0
-                
+
                 severity = "high" if amount > q3 + 3 * iqr else "medium"
-                
+
                 anomalies.append({
                     "expense_id": transaction['expense_id'],
                     "category_id": category_id,
@@ -480,26 +480,26 @@ def detect_anomalies(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
                     "deviation_percent": round(deviation_pct, 1),
                     "severity": severity
                 })
-        
-        anomalies.sort(key=lambda x: (x['severity'] == 'high', x['amount']), reverse=True)
-    
-        if not anomalies:
-            return AIResponse(
+
+    anomalies.sort(key=lambda x: (x['severity'] == 'high', x['amount']), reverse=True)
+
+    if not anomalies:
+        return AIResponse(
             response="No unusual spending patterns detected. Your expenses look consistent!",
             data={"anomalies": []},
             execution_status="success"
-            )
-        
-        top = anomalies[0]
-        response_text = f"Found {len(anomalies)} unusual transactions. "
-        response_text += f"Most significant: ${top['amount']:.2f} for '{top['description']}' "
-        response_text += f"({top['deviation_percent']:+.0f}% vs usual)."
+        )
 
-        return AIResponse(
-            response=response_text,
-            data={"anomalies": anomalies[:10], "total_anomalies": len(anomalies)},
-            execution_status="success"
-            )
+    top = anomalies[0]
+    response_text = f"Found {len(anomalies)} unusual transactions. "
+    response_text += f"Most significant: ${top['amount']:.2f} for '{top['description']}' "
+    response_text += f"({top['deviation_percent']:+.0f}% vs usual)."
+
+    return AIResponse(
+        response=response_text,
+        data={"anomalies": anomalies[:10], "total_anomalies": len(anomalies)},
+        execution_status="success"
+    )
 
 # Smart categorize
 def smart_categorize(expense_description: str) -> str:

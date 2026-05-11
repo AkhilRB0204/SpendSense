@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timedelta
 from database import models
 from auth import hash_password, verify_password
 from typing import Dict, List
@@ -279,9 +279,9 @@ def get_budget_period_dates(budget: models.Budget):
     elif budget.period == "weekly":
         # Start from Monday of current week
         days_since_monday = now.weekday()
-        start = now - datetime.timedelta(days=days_since_monday)
+        start = now - timedelta(days=days_since_monday)
         start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-        end = start + datetime.timedelta(days=7)
+        end = start + timedelta(days=7)
     elif budget.period == "monthly":
         start = datetime(now.year, now.month, 1)
         if now.month == 12:

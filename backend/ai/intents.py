@@ -12,6 +12,8 @@ INTENT_KEYWORDS: Dict[IntentType, List[str]] = {
     IntentType.detect_anomalies: ["detect anomalies", "unusual spending", "anomaly detection"],
     IntentType.budget_suggestions: ["budget suggestions", "spending advice", "budget tips"],
     IntentType.highest_expense: ["highest expense", "biggest expense", "largest spending"],
+    IntentType.budget_check: ["budget check", "budget status", "am i over budget", "budget alert", "how am i doing on my budget", "check my budget", "budget progress"],
+    IntentType.suggest_budget: ["suggest budget", "recommend budget", "budget recommendation", "what should my budget be", "how much should i budget"],
 }
 
 

@@ -62,10 +62,18 @@ async function getCurrentUser() {
   return await response.json();
 }
 
+function handle401(response) {
+  if (response.status === 401) {
+    localStorage.removeItem('access_token');
+    window.location.reload();
+  }
+  return response;
+}
+
 async function fetchExpenses() {
-  const response = await fetch(`${API_BASE}/expenses`, {
+  const response = handle401(await fetch(`${API_BASE}/expenses`, {
     headers: getAuthHeaders()
-  });
+  }));
   if (!response.ok) throw new Error('Failed to fetch expenses');
   return await response.json();
 }
@@ -73,18 +81,18 @@ async function fetchExpenses() {
 async function createExpense(category_id, amount, description, created_at) {
   const body = { category_id, amount, description };
   if (created_at) body.created_at = created_at;
-  
-  const response = await fetch(`${API_BASE}/expenses`, {
+
+  const response = handle401(await fetch(`${API_BASE}/expenses`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(body)
-  });
-  
+  }));
+
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to create expense');
   }
-  
+
   return await response.json();
 }
 
@@ -129,9 +137,9 @@ async function fetchExpenseSummary(month, year) {
 }
 
 async function fetchBudgetStatus() {
-  const response = await fetch(`${API_BASE}/budgets/status`, {
+  const response = handle401(await fetch(`${API_BASE}/budgets/status`, {
     headers: getAuthHeaders()
-  });
+  }));
   if (!response.ok) throw new Error('Failed to fetch budget status');
   return await response.json();
 }
@@ -173,13 +181,35 @@ async function queryAI(query) {
     headers: getAuthHeaders(),
     body: JSON.stringify({ query })
   });
-  
+
+  if (response.status === 401) {
+    localStorage.removeItem('access_token');
+    window.location.reload();
+    return;
+  }
+
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to query AI');
   }
-  
+
   return await response.json();
+}
+
+async function loadChatHistory(userId) {
+  const response = await fetch(`${API_BASE}/users/${userId}/chat`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) return [];
+  return await response.json();
+}
+
+async function saveChatMessage(userId, sender, message) {
+  await fetch(`${API_BASE}/users/${userId}/chat`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ user_id: userId, sender, message })
+  });
 }
 
 function validatePassword(password) {
@@ -898,9 +928,17 @@ function Budgets({ user }) {
         </button>
       </div>
 
+      {budgets.length === 0 && (
+        <div className="bg-white rounded-xl p-12 shadow-lg border border-gray-100 text-center text-gray-500">
+          <Target className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <p className="text-lg font-medium">No budgets set yet</p>
+          <p className="text-sm mt-2">Click "Set Budget" to create your first budget limit.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {budgets.map((budget) => {
-          const percentUsed = (budget.spent_amount / budget.budget_amount) * 100;
+          const percentUsed = budget.budget_amount > 0 ? (budget.spent_amount / budget.budget_amount) * 100 : 0;
           const isOverBudget = percentUsed > 100;
           const isNearLimit = percentUsed > (budget.alert_threshold * 100);
 
@@ -960,6 +998,13 @@ function Budgets({ user }) {
                     />
                   </div>
                 </div>
+
+                {budget.days_remaining != null && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Days left</span>
+                    <span className="font-semibold text-gray-700">{budget.days_remaining}</span>
+                  </div>
+                )}
 
                 {isOverBudget && (
                   <div className="flex items-center space-x-2 text-red-600 text-sm pt-2">
@@ -1084,6 +1129,16 @@ function AIChat({ user }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    loadChatHistory(user.user_id)
+      .then(history => {
+        setMessages(history.map(m => ({ sender: m.sender, message: m.message })));
+      })
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
+  }, [user.user_id]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -1091,15 +1146,15 @@ function AIChat({ user }) {
 
     const userMessage = { sender: 'User', message: input };
     setMessages(prev => [...prev, userMessage]);
+    saveChatMessage(user.user_id, 'User', input);
     setInput('');
     setLoading(true);
 
     try {
       const response = await queryAI(input);
-      setMessages(prev => [...prev, {
-        sender: 'AI',
-        message: response.response || 'No response'
-      }]);
+      const aiMessage = response?.response || 'No response';
+      setMessages(prev => [...prev, { sender: 'AI', message: aiMessage }]);
+      saveChatMessage(user.user_id, 'AI', aiMessage);
     } catch (error) {
       console.error('AI query failed:', error);
       setMessages(prev => [...prev, {
@@ -1132,11 +1187,14 @@ function AIChat({ user }) {
 
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col" style={{ height: '600px' }}>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.length === 0 && (
+          {historyLoading && (
+            <div className="text-center text-gray-400 py-12">Loading chat history...</div>
+          )}
+          {!historyLoading && messages.length === 0 && (
             <div className="text-center text-gray-500 py-12">
               <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
               <p className="text-lg font-medium">Ask me anything about your spending!</p>
-              <p className="text-sm mt-2">Try: "What did I spend on food this month?" or "Show me my budget status"</p>
+              <p className="text-sm mt-2">Try: "What did I spend on food this month?" or "Check my budget status"</p>
             </div>
           )}
           {messages.map((msg, i) => (

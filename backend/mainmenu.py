@@ -129,14 +129,16 @@ def delete_category_endpoint(category_id: int, db: Session = Depends(get_db)):
     db.commit()
     return category
 
-#  EXPENSES 
+#  EXPENSES
 @app.post("/expenses", response_model=schemas.ExpenseResponse)
-def create_expense_endpoint(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
-    if not crud.get_user_by_id(db, expense.user_id):
-        raise HTTPException(status_code=404, detail="User not found")
+def create_expense_endpoint(
+    expense: schemas.ExpenseCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
     if not crud.get_category_by_id(db, expense.category_id):
         raise HTTPException(status_code=404, detail="Category not found")
-    return crud.create_expense(db, expense.user_id, expense.category_id, expense.amount, expense.description, expense_date=expense.created_at)
+    return crud.create_expense(db, current_user['user_id'], expense.category_id, expense.amount, expense.description, expense_date=expense.created_at)
 
 @app.put("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
 def update_expense_endpoint(expense_id: int, expense_update: schemas.ExpenseCreate, db: Session = Depends(get_db)):
@@ -152,11 +154,17 @@ def update_expense_endpoint(expense_id: int, expense_update: schemas.ExpenseCrea
     return updated_expense
 
 @app.delete("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
-def delete_expense_endpoint(expense_id: int, db: Session = Depends(get_db)):
-    deleted_expense = crud.soft_delete_expense(db, expense_id)
-    if not deleted_expense:
+def delete_expense_endpoint(
+    expense_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    expense = crud.get_expense_by_id(db, expense_id)
+    if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
-    return deleted_expense
+    if expense.user_id != current_user['user_id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return crud.soft_delete_expense(db, expense_id)
 
 # BUDGETS
 @app.post("/budgets", response_model=schemas.BudgetResponse)
@@ -308,26 +316,22 @@ def delete_budget(
     crud.soft_delete_budget(db, budget_id)
     return {"message": "Budget deleted successfully"}
 
-# Debug endpoint
-@app.get("/debug")
-def debug(db: Session = Depends(get_db)):
-    return {
-        "users": db.query(models.User).all(),
-        "categories": db.query(models.Category).all(),
-        "expenses": db.query(models.Expense).all()
-    }
-
 # AI query endpoint
 @app.post("/ai/query", response_model=AIResponse)
-@limiter.limit("20/minute")  # Rate limit AI queries
-def ai_query(request: AIRequest, db: Session = Depends(get_db)):
-    current_user = crud.get_user_by_id(db, request.user_id)
-    if current_user is None or current_user.deleted_at:
+@limiter.limit("20/minute")
+def ai_query(
+    request: Request,
+    ai_request: AIRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    if user is None or user.deleted_at:
         raise HTTPException(status_code=404, detail="User not found or inactive")
 
-    parsed_intent = parse_intent_from_query(request.query)
-    result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user.user_id)
-    return result 
+    parsed_intent = parse_intent_from_query(ai_request.query)
+    result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user['user_id'])
+    return result
 
 # Monthly Expense Summary
 @app.get("/users/{user_id}/expenses/summary", response_model=schemas.ExpenseSummaryResponse)

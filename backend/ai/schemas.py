@@ -8,7 +8,6 @@ from enum import Enum
 
 # AI Request Schema
 class AIRequest(BaseModel):
-    user_id: int  # ID of the user making the AI request
     query: str  # Natural language query
     context: Optional[List[str]] = None  # Conversation history
     filters: Optional[Dict[str, Any]] = None  # Additional context for the AI
@@ -53,6 +52,8 @@ class IntentType(str, Enum):
     budget_suggestions = "budget_suggestions"
     highest_expense = "highest_expense"
     advice = "advice"
+    budget_check = "budget_check"
+    suggest_budget = "suggest_budget"
 
 class QueryType(str, Enum):
     summary = "summary"

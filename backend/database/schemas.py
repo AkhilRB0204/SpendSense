@@ -39,7 +39,6 @@ class CategoryExpenseSummary(BaseModel):
 
 # Expense Schemas
 class ExpenseCreate(BaseModel):
-    user_id: int
     category_id: int
     amount: float
     description: str
@@ -115,7 +114,6 @@ class ChatMessageResponse(BaseModel):
         from_attributes = True
 
 class BudgetCreate(BaseModel):
-    user_id: int
     category_id: Optional[int] = None
     amount: float # Positive decimal value
     start_date: Optional[datetime] = None
