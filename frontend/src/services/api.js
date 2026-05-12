@@ -259,6 +259,18 @@ export async function deleteBudget(budgetId) {
 
 // AI ENDPOINTS
 
+export async function fetchMonthlyTrend(months = 6) {
+  const response = await fetch(`${API_BASE}/expenses/trend?months=${months}`, {
+    headers: getAuthHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch monthly trend");
+  }
+
+  return await response.json();
+}
+
 //  NO user_id - comes from auth token
 //  Body: { query: string }
 //  Response: { response: string, data, confidence, suggestions, next_action }

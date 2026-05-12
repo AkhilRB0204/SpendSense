@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Query, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 import os
 from dotenv import load_dotenv
@@ -407,6 +407,42 @@ def get_user_expenses(
         .all()
     
     return expenses
+
+@app.get("/expenses/trend")
+def get_expense_trend(
+    months: int = Query(6, ge=1, le=24),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """Return monthly spending totals for the past N months, oldest first."""
+    user = crud.get_user_by_id(db, current_user['user_id'])
+    if not user or user.deleted_at:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = []
+    current = datetime.now().replace(day=1)
+
+    for _ in range(months):
+        m, y = current.month, current.year
+        total = db.query(func.sum(models.Expense.amount)).filter(
+            models.Expense.user_id == current_user['user_id'],
+            models.Expense.deleted_at == None,
+            func.extract('month', models.Expense.expense_date) == m,
+            func.extract('year', models.Expense.expense_date) == y
+        ).scalar() or 0.0
+
+        result.append({
+            "month": m,
+            "year": y,
+            "label": current.strftime("%b %Y"),
+            "total": round(float(total), 2)
+        })
+
+        current = (current - timedelta(days=1)).replace(day=1)
+
+    result.reverse()
+    return {"trend": result}
+
 
 @app.get("/expenses/summary", response_model=schemas.ExpenseSummaryResponse)
 def get_expense_summary(

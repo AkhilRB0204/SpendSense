@@ -46,8 +46,8 @@ def _normalize_query(query: str) -> str:
 def _detect_intent(query: str) -> IntentType:
     "Determine the user's intent based on keywords in the query."
     
-    if "total" in query or "spend" in query:
-        return IntentType.monthly_total
+    if "advice" in query or "insight" in query or "tip" in query or "recommend" in query:
+        return IntentType.advice
     elif "breakdown" in query or "category" in query:
         return IntentType.category_breakdown
     elif "trend" in query or "pattern" in query:
@@ -62,8 +62,10 @@ def _detect_intent(query: str) -> IntentType:
         return IntentType.detect_anomalies
     elif "budget" in query or "suggestion" in query:
         return IntentType.budget_suggestions
-    elif "expense" in query or "biggest" in query or "largest" in query:
+    elif "biggest" in query or "largest" in query:
         return IntentType.highest_expense
+    elif "total" in query or "spend" in query or "expense" in query:
+        return IntentType.monthly_total
     else:
         return IntentType.monthly_total  # Default intent
 
