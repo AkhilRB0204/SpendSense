@@ -52,6 +52,9 @@ def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
         elif parsed_intent.intent == IntentType.highest_expense:
             return highest_expense(parsed_intent, db, user_id)
         
+        elif parsed_intent.intent == IntentType.create_expense:
+            return create_expense_from_nl(parsed_intent, db, user_id)
+
         elif parsed_intent.intent == IntentType.budget_check:
             return check_budget_alerts(db, user_id)
         elif parsed_intent.intent == IntentType.suggest_budget:
@@ -83,8 +86,8 @@ def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int
         .filter(
             models.Expense.user_id == user_id,
             models.Expense.deleted_at.is_(None),
-            func.extract('month', models.Expense.date) == month,
-            func.extract('year', models.Expense.date) == year
+            func.extract('month', models.Expense.expense_date) == month,
+            func.extract('year', models.Expense.expense_date) == year
         )
         .scalar() or 0.0
     )
@@ -100,21 +103,27 @@ def monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIR
     # Build response text based on time range
     if parsed_intent.time:
         if parsed_intent.time.month:
-            query = query.filter(func.extract('month', models.Expense.date) == parsed_intent.time.month)
+            query = query.filter(func.extract('month', models.Expense.expense_date) == parsed_intent.time.month)
         if parsed_intent.time.year:
-            query = query.filter(func.extract('year', models.Expense.date) == parsed_intent.time.year)
+            query = query.filter(func.extract('year', models.Expense.expense_date) == parsed_intent.time.year)
         if parsed_intent.time.day:
-            query = query.filter(func.extract('day', models.Expense.date) == parsed_intent.time.day)
+            query = query.filter(func.extract('day', models.Expense.expense_date) == parsed_intent.time.day)
 
     
     total_spending = query.scalar() or 0.0
 
     if parsed_intent.time and parsed_intent.time.month and parsed_intent.time.year:
-        response_text = f"Your total spending for {parsed_intent.time.month}/{parsed_intent.time.year} is ${total_spending:.2f}."
+        label = datetime(parsed_intent.time.year, parsed_intent.time.month, 1).strftime("%B %Y")
+        response_text = f"You spent ${total_spending:.2f} in {label}."
     elif parsed_intent.time and parsed_intent.time.year:
-        response_text = f"Your total spending for {parsed_intent.time.year} is ${total_spending:.2f}."
+        response_text = f"You spent ${total_spending:.2f} in {parsed_intent.time.year}."
     else:
-        response_text = f"Your total recorded spending is ${total_spending:.2f}."
+        now = datetime.now()
+        this_month = get_monthly_expense_summary(db, user_id, now.month, now.year)
+        response_text = (
+            f"You've spent ${this_month:.2f} so far in {now.strftime('%B')}, "
+            f"and ${total_spending:.2f} across all recorded expenses."
+        )
 
     return AIResponse(
         response=response_text,
@@ -150,9 +159,12 @@ def category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -
         )
 
     breakdown = {name: float(amount) for name, amount in results}
+    total = sum(breakdown.values()) or 1
+    ranked = sorted(breakdown.items(), key=lambda kv: kv[1], reverse=True)
+    top = ", ".join(f"{name} ${amt:.2f} ({amt / total * 100:.0f}%)" for name, amt in ranked[:3])
 
     return AIResponse(
-        response="Here's your category breakdown.",
+        response=f"Your top categories: {top}.",
         data={"by_category": breakdown},
         execution_status="success"
     )
@@ -270,7 +282,7 @@ def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
     end_date = datetime.now()
     start_date = end_date.replace(day=1)
 
-    for _ in range(n_months):
+    for _ in range(n_months - 1):
         start_date = (start_date.replace(day=1) - timedelta(days=1)).replace(day=1)
 
     query = db.query(
@@ -290,20 +302,41 @@ def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
         func.extract('month', models.Expense.expense_date)
     )
 
-    results = query.all()
-    trend = [
-        {"year": int(year), "month": int(month), "total_amount": float(total_amount)}
-        for year, month, total_amount in results
-    ]
+    totals = {(int(year), int(month)): float(total_amount) for year, month, total_amount in query.all()}
 
-    if not trend:
+    if not totals:
         return AIResponse(
             response="No spending data available for trend analysis.",
             execution_status="failed"
         )
 
+    # One point per month (including zero months) so the chart is continuous
+    trend = []
+    cursor = start_date
+    while cursor <= end_date:
+        trend.append({
+            "year": cursor.year,
+            "month": cursor.month,
+            "label": cursor.strftime("%b %Y"),
+            "total_amount": round(totals.get((cursor.year, cursor.month), 0.0), 2),
+        })
+        cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+    peak = max(trend, key=lambda t: t["total_amount"])
+    avg = sum(t["total_amount"] for t in trend) / len(trend)
+    last, prev = trend[-1]["total_amount"], trend[-2]["total_amount"] if len(trend) > 1 else 0.0
+    if prev:
+        change = (last - prev) / prev * 100
+        direction = f"{'up' if change >= 0 else 'down'} {abs(change):.0f}% from {trend[-2]['label']}"
+    else:
+        direction = "no spending the month before to compare against"
+
     return AIResponse(
-        response=f"Here's your spending trend over the past {n_months} months.",
+        response=(
+            f"Over the last {len(trend)} months you averaged ${avg:.2f}/month. "
+            f"Your highest month was {peak['label']} at ${peak['total_amount']:.2f}. "
+            f"{trend[-1]['label']} is at ${last:.2f} so far ({direction})."
+        ),
         data={"trend": trend},
         execution_status="success"
     )
@@ -666,6 +699,43 @@ def get_category_tips(category: str, avg_spending: float) -> List[str]:
     
     return tips
 
+
+
+def create_expense_from_nl(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
+    """Parse natural language like 'I spent $45 on groceries' and return structured data for the frontend to confirm."""
+    query = parsed_intent.raw_query or ""
+
+    amount_match = re.search(r'\$\s*(\d+(?:\.\d{1,2})?)', query) or re.search(r'(\d+(?:\.\d{1,2})?)\s*(?:dollars?|bucks?)', query, re.IGNORECASE)
+    if not amount_match:
+        return AIResponse(response="I couldn't find an amount. Try: 'I spent $45 on groceries'", execution_status="failed")
+
+    amount = float(amount_match.group(1))
+
+    desc_match = re.search(r'(?:on|for)\s+(.+?)(?:\s+(?:today|yesterday|this|last|in|at)\b|$)', query, re.IGNORECASE)
+    description = desc_match.group(1).strip() if desc_match else query.strip()
+
+    CATEGORY_KEYWORDS = {
+        'food':           ['food', 'groceries', 'grocery', 'restaurant', 'lunch', 'dinner', 'breakfast', 'coffee', 'eat', 'meal', 'pizza', 'burger', 'sushi'],
+        'transportation': ['uber', 'lyft', 'gas', 'fuel', 'transport', 'bus', 'train', 'taxi', 'parking', 'toll', 'flight'],
+        'entertainment':  ['movie', 'netflix', 'spotify', 'game', 'entertainment', 'concert', 'bar', 'ticket', 'show', 'youtube', 'disney'],
+        'health':         ['doctor', 'pharmacy', 'gym', 'medicine', 'health', 'medical', 'dentist', 'workout', 'vitamin'],
+        'shopping':       ['amazon', 'clothes', 'shopping', 'store', 'mall', 'clothing', 'shoes', 'bag', 'online'],
+        'utilities':      ['electricity', 'water', 'internet', 'phone', 'bill', 'utility', 'rent', 'insurance', 'subscription'],
+    }
+
+    detected_category = None
+    q_lower = query.lower()
+    for cat, keywords in CATEGORY_KEYWORDS.items():
+        if any(kw in q_lower for kw in keywords):
+            detected_category = cat
+            break
+
+    cat_text = f" in {detected_category}" if detected_category else ""
+    return AIResponse(
+        response=f"Got it — ${amount:.2f} for '{description}'{cat_text}. Confirm below to add it.",
+        data={"action": "create_expense", "amount": amount, "description": description, "suggested_category": detected_category},
+        execution_status="success"
+    )
 
 
 def generate_personalized_advice(db: Session, user_id: int) -> AIResponse:

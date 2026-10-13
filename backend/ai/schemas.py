@@ -54,6 +54,7 @@ class IntentType(str, Enum):
     advice = "advice"
     budget_check = "budget_check"
     suggest_budget = "suggest_budget"
+    create_expense = "create_expense"
 
 class QueryType(str, Enum):
     summary = "summary"

@@ -19,7 +19,7 @@ from database import models, database, schemas, crud
 from database.database import engine, SessionLocal
 
 from ai.processor import process_ai_query
-from ai.intents import parse_intent_from_query
+from ai.parser import parse_intent
 from ai.schemas import AIRequest, AIResponse, ParsedIntent, TimeRange, IntentType, QueryType
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -329,7 +329,7 @@ def ai_query(
     if user is None or user.deleted_at:
         raise HTTPException(status_code=404, detail="User not found or inactive")
 
-    parsed_intent = parse_intent_from_query(ai_request.query)
+    parsed_intent = parse_intent(ai_request.query)
     result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user['user_id'])
     return result
 
