@@ -109,14 +109,22 @@ def monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIR
         if parsed_intent.time.day:
             query = query.filter(func.extract('day', models.Expense.expense_date) == parsed_intent.time.day)
 
-    
+    # Narrow to a category if the user named one (e.g. "food in October")
+    on_cat = ""
+    if parsed_intent.category:
+        query = query.join(models.Category, models.Expense.category_id == models.Category.category_id)\
+            .filter(models.Category.name.ilike(f"%{parsed_intent.category}%"))
+        on_cat = f" on {parsed_intent.category}"
+
     total_spending = query.scalar() or 0.0
 
     if parsed_intent.time and parsed_intent.time.month and parsed_intent.time.year:
         label = datetime(parsed_intent.time.year, parsed_intent.time.month, 1).strftime("%B %Y")
-        response_text = f"You spent ${total_spending:.2f} in {label}."
+        response_text = f"You spent ${total_spending:.2f}{on_cat} in {label}."
     elif parsed_intent.time and parsed_intent.time.year:
-        response_text = f"You spent ${total_spending:.2f} in {parsed_intent.time.year}."
+        response_text = f"You spent ${total_spending:.2f}{on_cat} in {parsed_intent.time.year}."
+    elif parsed_intent.category:
+        response_text = f"You've spent ${total_spending:.2f}{on_cat} across all recorded expenses."
     else:
         now = datetime.now()
         this_month = get_monthly_expense_summary(db, user_id, now.month, now.year)
@@ -127,7 +135,7 @@ def monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIR
 
     return AIResponse(
         response=response_text,
-        data={"total_spending": round(total_spending, 2)},
+        data={"total_spending": round(total_spending, 2), "category": parsed_intent.category},
         execution_status="success"
     )
 

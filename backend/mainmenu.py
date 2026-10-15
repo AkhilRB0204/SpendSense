@@ -20,6 +20,7 @@ from database.database import engine, SessionLocal
 
 from ai.processor import process_ai_query
 from ai.parser import parse_intent
+from ai.llm import llm_enabled, build_financial_context, generate_llm_reply
 from ai.schemas import AIRequest, AIResponse, ParsedIntent, TimeRange, IntentType, QueryType
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -331,6 +332,19 @@ def ai_query(
 
     parsed_intent = parse_intent(ai_request.query)
     result = process_ai_query(parsed_intent=parsed_intent, db=db, user_id=current_user['user_id'])
+
+    # Expense logging needs the structured confirm flow; everything else gets a Claude-written reply.
+    # The rule-based result is kept for chart data and as the fallback if the LLM is unavailable.
+    if llm_enabled() and parsed_intent.intent != IntentType.create_expense:
+        reply = generate_llm_reply(
+            query=ai_request.query,
+            financial_context=build_financial_context(db, current_user['user_id']),
+            history=ai_request.context,
+            computed={"response": result.response, "data": result.data},
+        )
+        if reply:
+            result.response = reply
+            result.execution_status = "success"
     return result
 
 # Monthly Expense Summary
