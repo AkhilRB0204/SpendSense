@@ -42,9 +42,12 @@ def soft_delete_user(db: Session, user_id: int):
     return user
 
 
-def get_user_by_email(db: Session, email: str):
-    # Retrieve a user from the database by email
-    return db.query(models.User).filter(models.User.email == email, models.User.deleted_at.is_(None)).first()
+def get_user_by_email(db: Session, email: str, include_deleted: bool = False):
+    # Retrieve a user from the database by email (emails stay unique even after soft delete)
+    query = db.query(models.User).filter(models.User.email == email)
+    if not include_deleted:
+        query = query.filter(models.User.deleted_at.is_(None))
+    return query.first()
 
 def get_user_by_id(db: Session, user_id: int):
     # Retrieve a user from the database by user_id
@@ -94,8 +97,11 @@ def create_expense(db: Session, user_id: int, category_id: int, amount: float, d
     return db_expense
 
 def get_expense_by_id(db: Session, expense_id: int):
-    # Retrieve an expense by its ID
-    return db.query(models.Expense).filter(models.Expense.expense_id == expense_id).first()
+    # Retrieve a (non-deleted) expense by its ID
+    return db.query(models.Expense).filter(
+        models.Expense.expense_id == expense_id,
+        models.Expense.deleted_at.is_(None)
+    ).first()
 
 def update_expense(db: Session, expense_id: int, amount: float = None, description: str = None, category_id: int = None):
     # Update expense details

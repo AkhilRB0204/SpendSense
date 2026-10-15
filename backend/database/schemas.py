@@ -25,6 +25,13 @@ class UserResponse(BaseModel):
 class CategoryCreate(BaseModel):
     name: str
 
+    @validator("name")
+    def name_not_blank(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("Category name cannot be empty")
+        return v
+
 class CategoryResponse(BaseModel):
     category_id: int
     name: str
@@ -44,6 +51,11 @@ class ExpenseCreate(BaseModel):
     description: str
     created_at: Optional[datetime] = None
 
+    @validator("amount")
+    def amount_must_be_positive(cls, v):
+        if not v > 0 or v == float("inf"):
+            raise ValueError("Amount must be a positive number")
+        return v
 
     @validator("created_at", pre=True, always=True)
     def parse_created_at(cls, v):

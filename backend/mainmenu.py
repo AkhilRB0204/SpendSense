@@ -70,7 +70,7 @@ def create_user(request: Request, user: schemas.UserCreate, db: Session = Depend
     auth.validate_email(user.email)
     auth.validate_password(user.password)
 
-    if crud.get_user_by_email(db, user.email):
+    if crud.get_user_by_email(db, user.email, include_deleted=True):
         raise HTTPException(status_code=400, detail="User already exists")
 
     return crud.create_user(db, user.name, user.email, user.password)
@@ -89,8 +89,24 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+def _require_self(user_id: int, current_user: dict):
+    if user_id != current_user['user_id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+
 @app.put("/users/{user_id}", response_model=schemas.UserResponse)
-def update_user_endpoint(user_id: int, user_update: schemas.UserCreate, db: Session = Depends(get_db)):
+def update_user_endpoint(
+    user_id: int,
+    user_update: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    _require_self(user_id, current_user)
+    auth.validate_email(user_update.email)
+    auth.validate_password(user_update.password)
+    existing = crud.get_user_by_email(db, user_update.email, include_deleted=True)
+    if existing and existing.user_id != user_id:
+        raise HTTPException(status_code=400, detail="Email already in use")
     updated_user = crud.update_user(db, user_id, user_update.name, user_update.email, user_update.password)
     if not updated_user:
         raise HTTPException(status_code=404, detail="User not found or deleted")
@@ -98,7 +114,12 @@ def update_user_endpoint(user_id: int, user_update: schemas.UserCreate, db: Sess
 
 
 @app.delete("/users/{user_id}", response_model=schemas.UserResponse)
-def delete_user_endpoint(user_id: int, db: Session = Depends(get_db)):
+def delete_user_endpoint(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    _require_self(user_id, current_user)
     deleted_user = crud.soft_delete_user(db, user_id)
     if not deleted_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -106,26 +127,46 @@ def delete_user_endpoint(user_id: int, db: Session = Depends(get_db)):
 
 #  CATEGORIES 
 @app.post("/categories", response_model=schemas.CategoryResponse)
-def create_category_endpoint(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
+def create_category_endpoint(
+    category: schemas.CategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
     if crud.get_category_by_name(db, category.name):
         raise HTTPException(status_code=400, detail="Category already exists")
     return crud.create_category(db, category.name)
 
 @app.put("/categories/{category_id}", response_model=schemas.CategoryResponse)
-def update_category_endpoint(category_id: int, category_update: schemas.CategoryCreate, db: Session = Depends(get_db)):
+def update_category_endpoint(
+    category_id: int,
+    category_update: schemas.CategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
     category = crud.get_category_by_id(db, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
+    existing = crud.get_category_by_name(db, category_update.name)
+    if existing and existing.category_id != category_id:
+        raise HTTPException(status_code=400, detail="Category already exists")
     category.name = category_update.name
     db.commit()
     db.refresh(category)
     return category
 
 @app.delete("/categories/{category_id}", response_model=schemas.CategoryResponse)
-def delete_category_endpoint(category_id: int, db: Session = Depends(get_db)):
+def delete_category_endpoint(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
     category = crud.get_category_by_id(db, category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
+    in_use = db.query(models.Expense.expense_id).filter(models.Expense.category_id == category_id).first() or \
+        db.query(models.Budget.budget_id).filter(models.Budget.category_id == category_id).first()
+    if in_use:
+        raise HTTPException(status_code=400, detail="Category is in use by expenses or budgets")
     db.delete(category)
     db.commit()
     return category
@@ -142,7 +183,19 @@ def create_expense_endpoint(
     return crud.create_expense(db, current_user['user_id'], expense.category_id, expense.amount, expense.description, expense_date=expense.created_at)
 
 @app.put("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
-def update_expense_endpoint(expense_id: int, expense_update: schemas.ExpenseCreate, db: Session = Depends(get_db)):
+def update_expense_endpoint(
+    expense_id: int,
+    expense_update: schemas.ExpenseCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    expense = crud.get_expense_by_id(db, expense_id)
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    if expense.user_id != current_user['user_id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if not crud.get_category_by_id(db, expense_update.category_id):
+        raise HTTPException(status_code=404, detail="Category not found")
     updated_expense = crud.update_expense(
         db,
         expense_id,
@@ -353,8 +406,10 @@ def monthly_summary(
     user_id: int,
     month: int = Query(..., ge=1, le=12),
     year: int = Query(..., ge=2000, le=2100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
 ):
+    _require_self(user_id, current_user)
     if not crud.get_user_by_id(db, user_id):
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -377,9 +432,15 @@ def get_current_user_profile(
 
 # Save a chat message
 @app.post("/users/{user_id}/chat", response_model=schemas.ChatMessageResponse)
-def save_chat_message(chat: schemas.ChatMessageCreate, db: Session = Depends(get_db)):
+def save_chat_message(
+    user_id: int,
+    chat: schemas.ChatMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(auth.get_current_user)
+):
+    _require_self(user_id, current_user)
     db_chat = models.ChatMessage(
-        user_id=chat.user_id,
+        user_id=user_id,
         sender=chat.sender,
         message=chat.message
     )

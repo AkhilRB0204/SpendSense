@@ -139,9 +139,16 @@ def _history_to_messages(context: Optional[List[str]]) -> List[Dict[str, str]]:
     messages: List[Dict[str, str]] = []
     for line in context or []:
         if line.startswith("User: "):
-            messages.append({"role": "user", "content": line[len("User: "):]})
+            role, content = "user", line[len("User: "):]
         elif line.startswith("AI: "):
-            messages.append({"role": "assistant", "content": line[len("AI: "):]})
+            role, content = "assistant", line[len("AI: "):]
+        else:
+            continue
+        # Roles must alternate; merge back-to-back turns from the same side
+        if messages and messages[-1]["role"] == role:
+            messages[-1]["content"] += "\n\n" + content
+        else:
+            messages.append({"role": role, "content": content})
     while messages and messages[0]["role"] != "user":
         messages.pop(0)
     return messages
@@ -160,6 +167,8 @@ def generate_llm_reply(
     prompt += f"<question>\n{query}\n</question>"
 
     messages = _history_to_messages(history)
+    if messages and messages[-1]["role"] == "user":
+        messages.pop()  # unanswered turn (e.g. this same query echoed in the history)
     messages.append({"role": "user", "content": prompt})
 
     try:
@@ -175,6 +184,10 @@ def generate_llm_reply(
         return None
     except anthropic.APIConnectionError as e:
         logger.error("Claude API connection error: %s", e)
+        return None
+    except Exception:
+        # Never let the LLM layer take down the endpoint; the rule-based reply still works
+        logger.exception("Unexpected error calling Claude")
         return None
 
     if response.stop_reason == "refusal":

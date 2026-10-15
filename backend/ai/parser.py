@@ -51,7 +51,9 @@ def _detect_intent(query: str) -> IntentType:
     def has(*words):
         return any(re.search(rf'\b{w}\b', query) for w in words)
 
-    if re.search(r'\b(i spent|i paid|i bought|add (an )?expense|log (an )?expense|log a)\b', query):
+    # "I spent $45 on lunch" logs an expense; "how much have I spent..." is a question
+    is_question = re.match(r'(how|what|when|where|which|why|did|do|have|has|was|is|am|can|could|should)\b', query)
+    if not is_question and re.search(r'\b(i spent|i paid|i bought|add (an )?expense|log (an )?expense|log a)\b', query):
         return IntentType.create_expense
     if has('forecast', 'predict', 'projection', 'next month', 'will i spend'):
         return IntentType.forecast
@@ -112,12 +114,15 @@ def _extract_filters(query: str) -> Optional[dict]:
     if n_match:
         filters["n_months"] = max(1, min(24, int(n_match.group(1))))
 
-    months = re.findall(r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\b', query)
+    # Month names, each optionally followed by a year ("october 2025")
+    months = re.findall(r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\b(?:\s+(20\d{2}))?', query)
     now = datetime.now()
     if len(months) >= 2:
-        m1, m2 = (datetime.strptime(m, '%B').month for m in months[:2])
-        filters.update(month1=m1, year1=now.year if m1 <= now.month else now.year - 1,
-                       month2=m2, year2=now.year if m2 <= now.month else now.year - 1)
+        (n1, y1), (n2, y2) = months[:2]
+        m1, m2 = datetime.strptime(n1, '%B').month, datetime.strptime(n2, '%B').month
+        default_year = lambda m: now.year if m <= now.month else now.year - 1
+        filters.update(month1=m1, year1=int(y1) if y1 else default_year(m1),
+                       month2=m2, year2=int(y2) if y2 else default_year(m2))
     elif re.search(r'\b(this|last) month\b', query) and re.search(r'\bcompare|vs|versus\b', query):
         prev = now.replace(day=1) - timedelta(days=1)
         filters.update(month1=prev.month, year1=prev.year, month2=now.month, year2=now.year)

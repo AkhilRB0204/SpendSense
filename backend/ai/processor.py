@@ -241,7 +241,7 @@ def highest_expense(parsed_intent: ParsedIntent, db: Session, user_id: int) -> A
             "expense_id": highest_exp.expense_id,
             "amount": float(highest_exp.amount),
             "description": highest_exp.description,
-            "date": highest_exp.created_at.isoformat()
+            "date": (highest_exp.expense_date or highest_exp.created_at).isoformat()
         },
         execution_status="success"
     )
@@ -274,10 +274,14 @@ def compare_months(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
 
     t1 = total_for_month(month1, year1)
     t2 = total_for_month(month2, year2)
+    label1 = datetime(year1, month1, 1).strftime("%B %Y")
+    label2 = datetime(year2, month2, 1).strftime("%B %Y")
+    diff = t2 - t1
+    change = f"{'up' if diff >= 0 else 'down'} ${abs(diff):.2f}" + (f" ({abs(diff) / t1 * 100:.0f}%)" if t1 else "")
 
     return AIResponse(
-        response=f"Total spending for {month1}/{year1} is ${t1:.2f}, and for {month2}/{year2} is ${t2:.2f}.",
-        data={"month1_total": t1, "month2_total": t2},
+        response=f"You spent ${t1:.2f} in {label1} and ${t2:.2f} in {label2}, {change}.",
+        data={"month1_total": t1, "month2_total": t2, "month1_label": label1, "month2_label": label2},
         execution_status="success"
     )
 
@@ -713,7 +717,11 @@ def create_expense_from_nl(parsed_intent: ParsedIntent, db: Session, user_id: in
     """Parse natural language like 'I spent $45 on groceries' and return structured data for the frontend to confirm."""
     query = parsed_intent.raw_query or ""
 
-    amount_match = re.search(r'\$\s*(\d+(?:\.\d{1,2})?)', query) or re.search(r'(\d+(?:\.\d{1,2})?)\s*(?:dollars?|bucks?)', query, re.IGNORECASE)
+    amount_match = (
+        re.search(r'\$\s*(\d+(?:\.\d{1,2})?)', query)
+        or re.search(r'(\d+(?:\.\d{1,2})?)\s*(?:dollars?|bucks?)', query, re.IGNORECASE)
+        or re.search(r'\b(?:spent|paid|bought|expense of)\s+(\d+(?:\.\d{1,2})?)\b', query, re.IGNORECASE)
+    )
     if not amount_match:
         return AIResponse(response="I couldn't find an amount. Try: 'I spent $45 on groceries'", execution_status="failed")
 
