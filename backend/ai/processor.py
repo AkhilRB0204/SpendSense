@@ -296,6 +296,7 @@ def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
 
     for _ in range(n_months - 1):
         start_date = (start_date.replace(day=1) - timedelta(days=1)).replace(day=1)
+    next_month = (end_date.replace(day=28) + timedelta(days=4)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     query = db.query(
         func.extract('year', models.Expense.expense_date).label('year'),
@@ -305,7 +306,7 @@ def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
         models.Expense.user_id == user_id,
         models.Expense.deleted_at.is_(None),
         models.Expense.expense_date >= start_date,
-        models.Expense.expense_date < end_date
+        models.Expense.expense_date < next_month
     ).group_by(
         func.extract('year', models.Expense.expense_date),
         func.extract('month', models.Expense.expense_date)

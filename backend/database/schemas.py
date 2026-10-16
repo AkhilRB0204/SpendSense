@@ -114,6 +114,18 @@ class ChatMessageCreate(BaseModel):
     sender: str
     message: str
 
+    @validator("sender")
+    def sender_must_be_valid(cls, v):
+        if v not in ("User", "AI"):
+            raise ValueError("sender must be 'User' or 'AI'")
+        return v
+
+    @validator("message")
+    def message_not_blank(cls, v):
+        if not v.strip():
+            raise ValueError("Message cannot be empty")
+        return v
+
 class ChatMessageResponse(BaseModel):
     # Used when returning messages to frontend
     id: int
@@ -188,6 +200,23 @@ class BudgetUpdate(BaseModel):
     def is_active_must_be_valid(cls, v):
         if v is not None and v not in [0, 1]:
             raise ValueError("is_active must be 0 or 1")
+        return v
+
+    @validator("period")
+    @classmethod
+    def period_must_be_valid(cls, v):
+        if v is None:
+            return v
+        valid_periods = ["monthly", "weekly", "yearly", "daily"]
+        if v.lower() not in valid_periods:
+            raise ValueError(f"Period must be one of: {', '.join(valid_periods)}")
+        return v.lower()
+
+    @validator("alert_threshold")
+    @classmethod
+    def threshold_must_be_valid(cls, v):
+        if v is not None and (v < 0 or v > 1):
+            raise ValueError("Alert threshold must be between 0 and 1")
         return v
     
 

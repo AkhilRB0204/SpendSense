@@ -232,7 +232,7 @@ def create_budget(
     if not user or user.deleted_at:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if budget.category_id:
+    if budget.category_id is not None:
         category = crud.get_category_by_id(db, budget.category_id)
         if not category:
             raise HTTPException(status_code=404, detail="Category not found")

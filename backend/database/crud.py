@@ -65,7 +65,7 @@ def verify_user_credentials(db: Session, email: str, password: str):
 
 def get_category_by_name(db: Session, name: str):
     # Retrieve a category by name
-    return db.query(models.Category).filter(models.Category.name == name).first()
+    return db.query(models.Category).filter(func.lower(models.Category.name) == name.strip().lower()).first()
 
 def get_category_by_id(db: Session, category_id: int):
     # Retrieve a category by its ID

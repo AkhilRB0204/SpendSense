@@ -19,6 +19,9 @@ useful pieces like intent, time, and category.
 
 CATEGORIES = ['food', 'entertainment', 'utilities', 'transportation', 'health', 'shopping']
 
+# Month names; "may" only counts when it isn't the verb ("how much may I spend")
+MONTH_PATTERN = r'\b(january|february|march|april|may(?!\s+(?:i|we|you)\b)|june|july|august|september|october|november|december)\b'
+
 def parse_intent(query: str) -> ParsedIntent:
     """
     Parse the user's query and return a structured ParsedIntent object.
@@ -94,7 +97,7 @@ def _extract_time(query: str) -> Optional[TimeRange]:
     elif re.search(r'\blast year\b', query):
         time_range.year = now.year - 1
 
-    month_match = re.search(r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\b', query)
+    month_match = re.search(MONTH_PATTERN, query)
     year_match = re.search(r'\b(20\d{2})\b', query)
 
     if month_match:
@@ -115,7 +118,7 @@ def _extract_filters(query: str) -> Optional[dict]:
         filters["n_months"] = max(1, min(24, int(n_match.group(1))))
 
     # Month names, each optionally followed by a year ("october 2025")
-    months = re.findall(r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\b(?:\s+(20\d{2}))?', query)
+    months = re.findall(MONTH_PATTERN + r'(?:\s+(20\d{2}))?', query)
     now = datetime.now()
     if len(months) >= 2:
         (n1, y1), (n2, y2) = months[:2]

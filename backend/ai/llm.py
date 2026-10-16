@@ -95,6 +95,7 @@ def build_financial_context(db: Session, user_id: int) -> str:
 
     this_month_start = month_starts[-1]
     last_month_start = month_starts[-2]
+    next_month_start = (this_month_start + timedelta(days=32)).replace(day=1)
 
     def fmt_expense(e: models.Expense) -> str:
         cat = e.category.name if e.category else "uncategorized"
@@ -125,7 +126,7 @@ def build_financial_context(db: Session, user_id: int) -> str:
     sections = [
         f"Today: {now.strftime('%A, %B %d, %Y')}",
         "Monthly totals (last 12 months, current month is partial):\n" + "\n".join(monthly),
-        f"Spending by category - {this_month_start.strftime('%B %Y')}:\n" + ("\n".join(by_category(this_month_start, now + timedelta(days=1))) or "none"),
+        f"Spending by category - {this_month_start.strftime('%B %Y')}:\n" + ("\n".join(by_category(this_month_start, next_month_start)) or "none"),
         f"Spending by category - {last_month_start.strftime('%B %Y')}:\n" + ("\n".join(by_category(last_month_start, this_month_start)) or "none"),
         "Largest expenses, last 90 days (date | amount | category | description):\n" + ("\n".join(fmt_expense(e) for e in largest) or "none"),
         "Most recent expenses:\n" + ("\n".join(fmt_expense(e) for e in recent) or "none"),
