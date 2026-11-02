@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from typing import Dict, List, Optional
 from datetime import datetime, date
 
@@ -17,15 +17,15 @@ class UserResponse(BaseModel):
     name: str
     email: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Category Schemas
 class CategoryCreate(BaseModel):
     name: str
 
-    @validator("name")
+    @field_validator("name")
+    @classmethod
     def name_not_blank(cls, v):
         v = v.strip()
         if not v:
@@ -36,8 +36,7 @@ class CategoryResponse(BaseModel):
     category_id: int
     name: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CategoryExpenseSummary(BaseModel):
     category_name: str
@@ -49,15 +48,17 @@ class ExpenseCreate(BaseModel):
     category_id: int
     amount: float
     description: str
-    created_at: Optional[datetime] = None
+    created_at: Optional[datetime] = Field(default=None, validate_default=True)
 
-    @validator("amount")
+    @field_validator("amount")
+    @classmethod
     def amount_must_be_positive(cls, v):
         if not v > 0 or v == float("inf"):
             raise ValueError("Amount must be a positive number")
         return v
 
-    @validator("created_at", pre=True, always=True)
+    @field_validator("created_at", mode="before")
+    @classmethod
     def parse_created_at(cls, v):
         if v is None:
             return datetime.utcnow()
@@ -81,8 +82,7 @@ class ExpenseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Expense Summary Schemas
@@ -100,8 +100,7 @@ class ExpenseSummaryResponse(BaseModel):
     start_date: datetime
     end_date: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
     
 class CategoryExpenseSummary(BaseModel):
     category_name: str
@@ -114,13 +113,15 @@ class ChatMessageCreate(BaseModel):
     sender: str
     message: str
 
-    @validator("sender")
+    @field_validator("sender")
+    @classmethod
     def sender_must_be_valid(cls, v):
         if v not in ("User", "AI"):
             raise ValueError("sender must be 'User' or 'AI'")
         return v
 
-    @validator("message")
+    @field_validator("message")
+    @classmethod
     def message_not_blank(cls, v):
         if not v.strip():
             raise ValueError("Message cannot be empty")
@@ -134,8 +135,7 @@ class ChatMessageResponse(BaseModel):
     message: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class BudgetCreate(BaseModel):
     category_id: Optional[int] = None
@@ -145,14 +145,14 @@ class BudgetCreate(BaseModel):
     end_date: Optional[datetime] = None
     alert_threshold: float = 0.8  # Alert at 80%
 
-    @validator("amount")
+    @field_validator("amount")
     @classmethod
     def amount_must_be_positive(cls, v):
         if v <= 0:
             raise ValueError("Budget amount must be positive")
         return v
     
-    @validator("period")
+    @field_validator("period")
     @classmethod
     def period_must_be_valid(cls, v):
         valid_periods = ["monthly", "weekly", "yearly", "daily"]
@@ -160,14 +160,15 @@ class BudgetCreate(BaseModel):
             raise ValueError(f"Period must be one of: {', '.join(valid_periods)}")
         return v.lower()
     
-    @validator("alert_threshold")
+    @field_validator("alert_threshold")
     @classmethod
     def threshold_must_be_valid(cls, v):
         if v < 0 or v > 1:
             raise ValueError("Alert threshold must be between 0 and 1")
         return v
     
-    @validator("start_date", "end_date", pre=True, always=True)
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
     def parse_dates(cls, v):
         if v is None:
             return None
@@ -188,21 +189,21 @@ class BudgetUpdate(BaseModel):
     is_active: Optional[bool] = None
     alert_threshold: Optional[float] = None
 
-    @validator("amount")
+    @field_validator("amount")
     @classmethod
     def amount_must_be_positive(cls, v):
         if v is not None and v <= 0:
             raise ValueError("Budget amount must be positive")
         return v
     
-    @validator("is_active")
+    @field_validator("is_active")
     @classmethod
     def is_active_must_be_valid(cls, v):
         if v is not None and v not in [0, 1]:
             raise ValueError("is_active must be 0 or 1")
         return v
 
-    @validator("period")
+    @field_validator("period")
     @classmethod
     def period_must_be_valid(cls, v):
         if v is None:
@@ -212,7 +213,7 @@ class BudgetUpdate(BaseModel):
             raise ValueError(f"Period must be one of: {', '.join(valid_periods)}")
         return v.lower()
 
-    @validator("alert_threshold")
+    @field_validator("alert_threshold")
     @classmethod
     def threshold_must_be_valid(cls, v):
         if v is not None and (v < 0 or v > 1):
@@ -236,8 +237,7 @@ class BudgetResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BudgetStatus(BaseModel):
@@ -254,5 +254,4 @@ class BudgetStatus(BaseModel):
     should_alert: bool
     days_remaining: Optional[int] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

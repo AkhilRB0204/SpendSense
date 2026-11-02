@@ -248,7 +248,7 @@ def create_budget(
         alert_threshold=budget.alert_threshold
     )
 
-    response = schemas.BudgetResponse.from_orm(db_budget)
+    response = schemas.BudgetResponse.model_validate(db_budget)
     if db_budget.category_id:
         category = crud.get_category_by_id(db, db_budget.category_id)
         response.category_name = category.name if category else None
@@ -273,7 +273,7 @@ def get_budgets(
     
     responses = []
     for budget in budgets:
-        response = schemas.BudgetResponse.from_orm(budget)
+        response = schemas.BudgetResponse.model_validate(budget)
         if budget.category_id:
             category = crud.get_category_by_id(db, budget.category_id)
             response.category_name = category.name if category else None
@@ -310,7 +310,7 @@ def get_budget(
     if budget.user_id != current_user['user_id']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    response = schemas.BudgetResponse.from_orm(budget)
+    response = schemas.BudgetResponse.model_validate(budget)
     if budget.category_id:
         category = crud.get_category_by_id(db, budget.category_id)
         response.category_name = category.name if category else None
@@ -344,7 +344,7 @@ def update_budget(
         alert_threshold=budget_update.alert_threshold
     )
     
-    response = schemas.BudgetResponse.from_orm(updated)
+    response = schemas.BudgetResponse.model_validate(updated)
     if updated.category_id:
         category = crud.get_category_by_id(db, updated.category_id)
         response.category_name = category.name if category else None
