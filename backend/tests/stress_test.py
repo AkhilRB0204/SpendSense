@@ -562,6 +562,40 @@ def _():
             s2.close()
         check("dec31: llm ctx", "Dec 2026: $200.00" in ctx, ctx[:400])
 
+# ---------------------------------------------------------------- 11. date range boundaries
+BD = signup("bd@test.com"); HBD = login("bd@test.com")
+s = SessionLocal()
+for when, amt in [(datetime(2026, 10, 31, 23, 59, 59), 1), (datetime(2026, 11, 1, 0, 0, 0), 10),
+                  (datetime(2026, 11, 30, 23, 59, 59), 100), (datetime(2026, 12, 1, 0, 0, 0), 1000),
+                  (datetime(2026, 12, 31, 23, 59, 59), 10000), (datetime(2027, 1, 1, 0, 0, 0), 100000),
+                  (datetime(2025, 11, 15, 12), 1000000)]:
+    crud.create_expense(s, BD, CATS["Food"], amt, f"edge {amt}", expense_date=when)
+s.close()
+
+@case("month boundaries")
+def _():
+    with frozen(datetime(2027, 1, 15, 12)):
+        for q, want in [("how much did i spend in november 2026", "$110.00"), ("how much did i spend in december 2026", "$11000.00"),
+                        ("how much did i spend in 2026", "$11111.00"), ("how much did i spend in january 2027", "$100000.00")]:
+            _, r = ask(q, BD)
+            check(f"boundary {q}", want in r.response, r.response)
+        _, r = ask("compare november 2026 and december 2026", BD)
+        check("boundary compare", r.data["month1_total"] == 110 and r.data["month2_total"] == 11000, r.data)
+        _, r = ask("category breakdown for november 2026", BD)
+        check("boundary breakdown", r.data["by_category"].get("Food") == 110, r.data)
+        _, r = ask("biggest expense in november 2026", BD)
+        check("boundary highest", r.data["amount"] == 100, r.data)
+        _, r = ask("spending trend over 3 months", BD)
+        check("trend keeps start of first month", [t["total_amount"] for t in r.data["trend"]] == [110, 11000, 100000], r.data)
+        r = client.get("/expenses/trend?months=3", headers=HBD)
+        check("api trend boundaries", [t["total"] for t in r.json()["trend"]] == [110, 11000, 100000], r.text[:200])
+
+@case("forecast window starts at midnight")
+def _():
+    with frozen(datetime(2027, 1, 15, 12)):
+        _, r = ask("forecast over 3 months", BD)
+        check("forecast keeps start of first month", r.data and r.data["historical_spending"][0] == 1 or r.data["historical_spending"][1] == 110, r.data)
+
 # ---------------------------------------------------------------- report
 print(f"\n{PASSES} checks passed, {len(FAILS)} failed\n")
 for f in FAILS:
