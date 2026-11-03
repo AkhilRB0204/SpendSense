@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Index
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 
@@ -42,6 +42,7 @@ class Category(Base):
 
 class Expense(Base):
     __tablename__ = "expenses"
+    __table_args__ = (Index("ix_expenses_user_id_expense_date", "user_id", "expense_date"),)
 
     expense_id = Column(Integer, primary_key=True, index=True)
 

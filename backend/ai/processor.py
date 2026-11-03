@@ -78,16 +78,32 @@ def process_ai_query(parsed_intent: ParsedIntent, db: Session, user_id: int) -> 
         )
 
 
+# Helper: restrict a query to a day, month or year using a date range
+def _filter_by_time(query, time: Optional[TimeRange]):
+    if not time or not (time.year or time.month):
+        return query
+    year = time.year or datetime.now().year
+    if time.month and time.day:
+        start = datetime(year, time.month, time.day)
+        end = start + timedelta(days=1)
+    elif time.month:
+        start, end = db_crud.month_bounds(year, time.month)
+    else:
+        start, end = datetime(year, 1, 1), datetime(year + 1, 1, 1)
+    return query.filter(models.Expense.expense_date >= start, models.Expense.expense_date < end)
+
+
 # Helper: monthly total
 def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int) -> float:
     """Fetch total spending for a given month and year."""
+    start, end = db_crud.month_bounds(year, month)
     return (
         db.query(func.sum(models.Expense.amount))
         .filter(
             models.Expense.user_id == user_id,
             models.Expense.deleted_at.is_(None),
-            func.extract('month', models.Expense.expense_date) == month,
-            func.extract('year', models.Expense.expense_date) == year
+            models.Expense.expense_date >= start,
+            models.Expense.expense_date < end
         )
         .scalar() or 0.0
     )
@@ -100,14 +116,7 @@ def monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIR
         models.Expense.deleted_at.is_(None)
     )
     
-    # Build response text based on time range
-    if parsed_intent.time:
-        if parsed_intent.time.month:
-            query = query.filter(func.extract('month', models.Expense.expense_date) == parsed_intent.time.month)
-        if parsed_intent.time.year:
-            query = query.filter(func.extract('year', models.Expense.expense_date) == parsed_intent.time.year)
-        if parsed_intent.time.day:
-            query = query.filter(func.extract('day', models.Expense.expense_date) == parsed_intent.time.day)
+    query = _filter_by_time(query, parsed_intent.time)
 
     # Narrow to a category if the user named one (e.g. "food in October")
     on_cat = ""
@@ -143,18 +152,12 @@ def monthly_total(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIR
 # Category breakdown
 def category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Provide a breakdown of spending by category for a given month and year."""
-    month = parsed_intent.time.month if parsed_intent.time else None
-    year = parsed_intent.time.year if parsed_intent.time else None
-
     query = db.query(models.Category.name, func.sum(models.Expense.amount))\
         .join(models.Expense, models.Expense.category_id == models.Category.category_id)\
         .filter(models.Expense.user_id == user_id)\
         .filter(models.Expense.deleted_at.is_(None))
 
-    if month:
-        query = query.filter(func.extract('month', models.Expense.expense_date) == month)
-    if year:
-        query = query.filter(func.extract('year', models.Expense.expense_date) == year)
+    query = _filter_by_time(query, parsed_intent.time)
 
     query = query.group_by(models.Category.name)
     results = query.all()
@@ -181,19 +184,13 @@ def category_breakdown(parsed_intent: ParsedIntent, db: Session, user_id: int) -
 # Highest spend category
 def highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Identify the category with the highest spending for a given month and year."""
-    month = parsed_intent.time.month if parsed_intent.time else None
-    year = parsed_intent.time.year if parsed_intent.time else None
-
     query = db.query(
         models.Category.name,
         func.sum(models.Expense.amount).label("total_amount")
     ).join(models.Expense, models.Expense.category_id == models.Category.category_id)\
      .filter(models.Expense.user_id == user_id, models.Expense.deleted_at.is_(None))
 
-    if month:
-        query = query.filter(func.extract('month', models.Expense.expense_date) == month)
-    if year:
-        query = query.filter(func.extract('year', models.Expense.expense_date) == year)
+    query = _filter_by_time(query, parsed_intent.time)
 
     result = query.group_by(models.Category.name).order_by(func.sum(models.Expense.amount).desc()).first()
 
@@ -214,18 +211,12 @@ def highest_spend_category(parsed_intent: ParsedIntent, db: Session, user_id: in
 # Highest expense
 def highest_expense(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AIResponse:
     """Identify the single highest expense for a given month and year."""
-    month = parsed_intent.time.month if parsed_intent.time else None
-    year = parsed_intent.time.year if parsed_intent.time else None
-
     query = db.query(models.Expense).filter(
         models.Expense.user_id == user_id,
         models.Expense.deleted_at.is_(None)
     )
 
-    if month:
-        query = query.filter(func.extract('month', models.Expense.expense_date) == month)
-    if year:
-        query = query.filter(func.extract('year', models.Expense.expense_date) == year)
+    query = _filter_by_time(query, parsed_intent.time)
 
     highest_exp = query.order_by(models.Expense.amount.desc()).first()
 
@@ -260,20 +251,8 @@ def compare_months(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
             execution_status="failed"
         )
 
-    def total_for_month(m, y):
-        return (
-            db.query(func.sum(models.Expense.amount))
-            .filter(
-                models.Expense.user_id == user_id,
-                models.Expense.deleted_at.is_(None),
-                func.extract('month', models.Expense.expense_date) == m,
-                func.extract('year', models.Expense.expense_date) == y
-            )
-            .scalar() or 0.0
-        )
-
-    t1 = total_for_month(month1, year1)
-    t2 = total_for_month(month2, year2)
+    t1 = get_monthly_expense_summary(db, user_id, month1, year1)
+    t2 = get_monthly_expense_summary(db, user_id, month2, year2)
     label1 = datetime(year1, month1, 1).strftime("%B %Y")
     label2 = datetime(year2, month2, 1).strftime("%B %Y")
     diff = t2 - t1
@@ -292,7 +271,7 @@ def spending_trend(parsed_intent: ParsedIntent, db: Session, user_id: int) -> AI
     filters = parsed_intent.filters or {}
     n_months = filters.get("n_months", 6)
     end_date = datetime.now()
-    start_date = end_date.replace(day=1)
+    start_date = end_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     for _ in range(n_months - 1):
         start_date = (start_date.replace(day=1) - timedelta(days=1)).replace(day=1)
@@ -363,7 +342,7 @@ def forecast_spending(parsed_intent: ParsedIntent, db: Session, user_id: int) ->
     forecast_periods = filters.get("forecast_periods", 3)
 
     end_date = datetime.now()
-    start_date = end_date.replace(day=1)
+    start_date = end_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     for _ in range(n_months):
         start_date = (start_date - timedelta(days=1)).replace(day=1)
 

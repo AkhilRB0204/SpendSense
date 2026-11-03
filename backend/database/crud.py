@@ -133,13 +133,17 @@ def get_expenses(db: Session):
     return db.query(models.Expense).all()
 
 
-def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int):
-    # Compute start and end dates for the month
+def month_bounds(year: int, month: int):
+    # First moment of the month and of the next one, for start <= date < end filters
     start_date = datetime(year, month, 1)
     if month == 12:
-        end_date = datetime(year + 1, 1, 1)
-    else:
-        end_date = datetime(year, month + 1, 1)
+        return start_date, datetime(year + 1, 1, 1)
+    return start_date, datetime(year, month + 1, 1)
+
+
+def get_monthly_expense_summary(db: Session, user_id: int, month: int, year: int):
+    # Compute start and end dates for the month
+    start_date, end_date = month_bounds(year, month)
 
     # Total number of days in the month
     total_days = (end_date - start_date).days

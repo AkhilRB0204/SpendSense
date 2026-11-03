@@ -593,8 +593,8 @@ def _():
 @case("forecast window starts at midnight")
 def _():
     with frozen(datetime(2027, 1, 15, 12)):
-        _, r = ask("forecast over 3 months", BD)
-        check("forecast keeps start of first month", r.data and r.data["historical_spending"][0] == 1 or r.data["historical_spending"][1] == 110, r.data)
+        _, r = ask("forecast over 2 months", BD)
+        check("forecast keeps start of first month", r.data and r.data["historical_spending"] == [110, 11000, 100000], r.response)
 
 # ---------------------------------------------------------------- report
 print(f"\n{PASSES} checks passed, {len(FAILS)} failed\n")

@@ -495,15 +495,16 @@ def get_expense_trend(
         raise HTTPException(status_code=404, detail="User not found")
 
     result = []
-    current = datetime.now().replace(day=1)
+    current = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     for _ in range(months):
         m, y = current.month, current.year
+        start, end = crud.month_bounds(y, m)
         total = db.query(func.sum(models.Expense.amount)).filter(
             models.Expense.user_id == current_user['user_id'],
             models.Expense.deleted_at == None,
-            func.extract('month', models.Expense.expense_date) == m,
-            func.extract('year', models.Expense.expense_date) == y
+            models.Expense.expense_date >= start,
+            models.Expense.expense_date < end
         ).scalar() or 0.0
 
         result.append({
